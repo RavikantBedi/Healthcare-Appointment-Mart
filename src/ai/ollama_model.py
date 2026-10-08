@@ -37,7 +37,8 @@ class OllamaAISummarizer(AISummarizer):
         payload = {
             "model": model,
             "prompt": prompt,
-            "stream": False
+            "stream": False,
+            "think": False
         }
         
         try:
