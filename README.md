@@ -19,16 +19,45 @@ This project models healthcare appointments using synthetic, non-sensitive data 
 
 ## 4. Architecture
 
-Raw
-→ Staging
-→ Core 3NF
-→ Analytical Mart / Star Schema
-→ Analytics Views
-→ Privacy-safe Metrics
-→ AI Interface
-→ Mock / Ollama / Optional Cloud Provider
+The pipeline processes synthetic data through multiple isolated layers to ensure data quality, referential integrity, and privacy.
 
-(See `docs/architecture.md` for diagrams).
+```mermaid
+flowchart TD
+    subgraph Source Data
+        A[Raw Synthetic CSVs]
+    end
+    
+    subgraph Data Engineering Pipeline
+        B[Extract & Validate]
+        C[Staging Layer]
+        D[Transform]
+        E[(Core 3NF Database)]
+        F[(Analytical Star Schema)]
+    end
+    
+    subgraph Analytics & AI
+        G[SQL Analytics Views]
+        H[Python Metrics Aggregation]
+        I[Privacy Validator Layer]
+        J[AISummarizer Interface]
+        K[Mock / Local Ollama / Grok / Gemini]
+    end
+    
+    A --> B
+    B -->|Clean Data| C
+    B -->|Rejected Data| Quarantine[Logs / Quarantine]
+    C --> D
+    D --> E
+    E --> F
+    F --> G
+    G --> H
+    H -->|Overall + Key Findings| I
+    I -->|Privacy Safe Payload| J
+    J --> K
+    K --> L[Natural Language Summary]
+```
+
+(See `docs/architecture.md` for extended system design details).
 
 ## 5. Technology Stack
 
@@ -215,12 +244,57 @@ python -m src.etl.pipeline
 - Local LLM output quality depends on the model capabilities.
 - The project is an assessment-sized data platform, not a clinical production system.
 
-## 21. Future Improvements
+## 21. Future Improvements (Target Production Architecture)
 
-- Incremental loading
-- Orchestration
-- Dashboard
-- Monitoring
-- Data lineage
-- Model evaluation
-- Cloud deployment
+For migrating this assessment-scale pipeline to an enterprise production environment, the following architectural enhancements would be recommended:
+
+```mermaid
+flowchart LR
+    subgraph Data Sources
+        S1[EMR API]
+        S2[Scheduling DB]
+        S3[Kafka Stream]
+    end
+
+    subgraph Data Lake / Ingestion
+        I1[Airbyte / Fivetran]
+        I2[S3 / GCS Raw Zone]
+    end
+
+    subgraph Data Warehouse / Lakehouse
+        W1[(Snowflake / BigQuery)]
+        W2[dbt Transformations]
+    end
+
+    subgraph Orchestration & Governance
+        O1[Apache Airflow]
+        O2[Data Quality / Great Expectations]
+        O3[Data Catalog / Lineage]
+    end
+
+    subgraph Serving & AI
+        A1[BI Dashboards]
+        A2[Managed LLM API]
+        A3[Model Endpoint]
+    end
+
+    S1 & S2 & S3 --> I1
+    I1 --> I2
+    I2 --> W1
+    W1 <--> W2
+    W2 --> A1
+    W2 -->|Privacy Proxy| A2
+    W2 --> A3
+    
+    O1 -.->|Triggers| I1
+    O1 -.->|Triggers| W2
+    O1 -.->|Validates| O2
+```
+
+**Key Enhancements:**
+- **Incremental loading:** Transition from truncate-and-reload to CDC (Change Data Capture) / upserts for continuous integration.
+- **Orchestration:** Deploy Apache Airflow or Dagster to manage complex pipeline dependencies and alerting.
+- **Dashboarding:** Expose Star Schema metrics directly via modern BI tools (e.g., Superset, Tableau, Metabase).
+- **Monitoring & Lineage:** Implement Great Expectations for data testing in flight and DataHub for tracking column-level lineage.
+- **Model Evaluation:** Systematize LLM output evaluation (e.g., RAGAS) to continually audit AI faithfulness in production.
+- **Cloud Deployment:** Containerize and deploy via Kubernetes, leveraging managed data warehouse infrastructure.
