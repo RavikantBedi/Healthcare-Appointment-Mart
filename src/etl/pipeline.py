@@ -104,8 +104,20 @@ def run_pipeline():
             logger.info("Row counts reconciled successfully.")
             
         # 8. Generate Analytics Metrics Payload
-        from src.analytics.metrics import save_metrics_payload
+        from src.analytics.metrics import generate_metrics_payload, save_metrics_payload
         save_metrics_payload()
+        
+        # 9. AI Summarization
+        payload = generate_metrics_payload()
+        from src.ai.factory import get_summarizer
+        summarizer = get_summarizer()
+        
+        try:
+            summary = summarizer.summarize(payload)
+            print("\n" + summary + "\n")
+        except RuntimeError as e:
+            logger.warning(f"{str(e)}; metrics pipeline completed successfully.")
+            print(f"\n[AI SUMMARY SKIPPED]: {str(e)}\n")
             
         logger.info("Pipeline completed successfully.")
         
