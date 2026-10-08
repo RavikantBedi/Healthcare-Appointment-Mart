@@ -6,7 +6,7 @@
 | **README** | Professional overview, instructions, architecture | `README.md` | ✅ Pass |
 | **Architecture/design explanation** | Detailed docs explaining layers and decisions | `docs/architecture.md`, `docs/design_decision.md` | ✅ Pass |
 | **Runnable code** | Pipeline executes end-to-end | `src/etl/pipeline.py` | ✅ Pass |
-| **Sample data** | Synthetic CSVs | `data/raw/*.csv` | ✅ Pass |
+| **Sample data** | Synthetic CSVs | `data/sample/*.csv` | ✅ Pass |
 | **SQL/data model** | Normalized Core 3NF & Analytical Star Schema | `sql/` | ✅ Pass |
 | **Tests** | Comprehensive test suite | `tests/`, `pytest -v` | ✅ Pass |
 | **5–8 minute demo** | Demo script prepared | `docs/demo_script.md` | ✅ Pass |

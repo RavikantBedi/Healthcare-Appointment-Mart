@@ -174,7 +174,7 @@ An active privacy validator strictly enforces this before API calls.
 
 ## 13. Testing
 
-The project has 26 passing tests across these categories:
+The project includes 48 tests covering ETL, validation, analytics, privacy, AI faithfulness, prompt integration, edge cases, and failure handling.
 - ETL
 - validation
 - analytics

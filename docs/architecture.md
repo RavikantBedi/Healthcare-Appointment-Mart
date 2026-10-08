@@ -10,7 +10,7 @@ Synthetic Data → Raw CSV → Extract → Validation → Staging → Transform 
 Contains synthetic CSV files simulating exports from external operational systems (`patients.csv`, `clinics.csv`, `appointment_types.csv`, `appointments.csv`).
 
 ## 4. Staging Layer
-The staging layer (`staging_` tables) ingests raw data precisely as it is received after passing initial Pydantic validation. It provides a clean, 1:1 replica of the validated raw files within PostgreSQL.
+The staging layer (`staging_` tables) ingests raw data precisely as it is received after passing explicit Pandas-based validation. It provides a clean, 1:1 replica of the validated raw files within PostgreSQL.
 
 ## 5. Core 3NF
 The core layer normalizes the data into Third Normal Form (3NF). It enforces referential integrity between appointments, patients, clinics, and types, stripping away noise and redundant records.
@@ -34,10 +34,10 @@ An interface (`AISummarizer`) abstracts the underlying AI backend, enabling seam
 - **Ollama:** Calls a locally running instance of Ollama (Qwen3:1.7B) using a strict system prompt and heavily filtered metrics payload (`overall` + `key_findings`).
 
 ## 11. Failure Handling
-Corrupt, malformed, or invalid rows are rejected at the Pydantic validation stage and quarantined in memory/logs while valid rows proceed successfully. The pipeline does not crash due to isolated data anomalies.
+Corrupt, malformed, or invalid rows are rejected at the validation stage and quarantined in memory/logs while valid rows proceed successfully. The pipeline does not crash due to isolated data anomalies.
 
 ## 12. Configuration
-Configuration is injected via `.env` files parsed by Pydantic `BaseSettings`. It controls the database URL, selected AI backend, thresholds, and endpoints.
+Configuration is loaded from `.env` using `python-dotenv`, `os.getenv`, and dataclass-based settings. It controls the database URL, selected AI backend, thresholds, and endpoints.
 
 ## 13. Docker
 PostgreSQL runs via `docker-compose.yaml`. This ensures a standardized, isolated, and reproducible database environment.
@@ -50,7 +50,7 @@ Tests are orchestrated via Pytest. They validate ETL idempotency, data rules, pr
 ```mermaid
 flowchart TD
     A[Synthetic Data / CSV] --> B[Extract]
-    B --> C[Validation Pydantic]
+    B --> C[Validation (Pandas/custom rules)]
     C -->|Rejects| D[Quarantine / Log]
     C -->|Valid| E[Staging]
     E --> F[Transform]
