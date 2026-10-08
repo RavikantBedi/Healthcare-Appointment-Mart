@@ -22,7 +22,7 @@ class OllamaAISummarizer(AISummarizer):
         # 1. Enforce privacy boundary
         validate_privacy(metrics)
         
-        url = f"{settings.ai.ollama_host}/api/generate"
+        url = f"{settings.ai.ollama_base_url}/api/generate"
         model = settings.ai.ollama_model
         
         from src.analytics.metrics import JSONEncoder
