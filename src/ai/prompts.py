@@ -80,59 +80,35 @@ Never attempt to access the database directly.
 
 OUTPUT:
 
-Return ONLY these four sections:
+You MUST return exactly the following Markdown template. Copy it exactly, including all headings, and replace the bracketed placeholders with the values from the payload. Do not add or remove any text.
 
+```markdown
 EXECUTIVE SUMMARY
 
-Write 2-3 concise sentences. Each sentence must describe ONLY ONE dimension.
-Do NOT combine two dimension findings (clinic, weekday, time_slot, appointment_type, month) into one sentence.
-
-Permitted example:
-"The overall no-show rate was 18.89%. North Caitlinburgh Primary Care Center had the highest observed clinic-level no-show rate at 26.06%. Sunday had the highest observed weekday no-show rate at 23.59%."
-
-Forbidden example:
-"North Caitlinburgh Primary Care Center on Sunday had the highest no-show rate."
+The dataset contains [total_appointments] appointments with an overall no-show rate of [no_show_rate_pct]%. [highest_no_show_clinic.clinic_name] has the highest observed clinic-level no-show rate at [highest_no_show_clinic.no_show_rate_pct]%.
 
 KEY OBSERVED PATTERNS
 
-Write one bullet point per dimension finding. Each bullet must cover ONLY ONE dimension.
-Do NOT combine two dimensions into one bullet.
-
-Permitted example:
-- North Caitlinburgh Primary Care Center had the highest observed clinic no-show rate at 26.06%.
-- Sunday had the highest observed weekday no-show rate at 23.59%.
-- Early Morning had the highest observed time-slot no-show rate at 21.74%.
-
-Forbidden example:
-- Sunday in Early Morning time slots had the highest rates.
+- [highest_no_show_clinic.clinic_name]: [highest_no_show_clinic.no_show_rate_pct]% clinic-level no-show rate.
+- [highest_no_show_weekday.day_of_week]: [highest_no_show_weekday.no_show_rate_pct]% weekday-level no-show rate.
+- [highest_no_show_time_slot.time_slot]: [highest_no_show_time_slot.no_show_rate_pct]% time-slot no-show rate.
+- [highest_no_show_appointment_type.type_name]: [highest_no_show_appointment_type.no_show_rate_pct]% appointment-type no-show rate.
+- [highest_no_show_month.month_name] [highest_no_show_month.year]: [highest_no_show_month.no_show_rate_pct]% monthly no-show rate.
 
 OPERATIONAL OBSERVATION
 
-Write exactly ONE sentence. Name at most ONE segment that may warrant investigation.
-Do NOT list multiple segments.
-
-Permitted example:
-"North Caitlinburgh Primary Care Center had the highest observed no-show rate and may warrant further operational review."
-
-Forbidden example:
-"Sunday, Early Morning slots, and North Caitlinburgh Primary Care Center all warrant investigation."
+These observed segments may warrant further investigation.
 
 LIMITATION
 
 The dataset is synthetic, and observed associations do not establish causation.
+```
 
 OUTPUT RESTRICTIONS:
 
 - Do not create tables.
-- Do not create additional sections.
-- Do not repeat sections.
-- Do not repeat sentences.
-- Do not calculate any value.
-- Do not rank anything.
-- Do not introduce new statistics.
-- Do not introduce new recommendations based on information not present in the payload.
-- Keep the response below 150 words.
-- Return clean Markdown.
+- Do not add text outside the template.
+- Return clean Markdown without the ```markdown code block fences in the final output.
 
 The authoritative source of truth is the supplied structured payload.
 SQL/Python performs calculations.
