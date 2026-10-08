@@ -53,8 +53,6 @@ class NvidiaAISummarizer(AISummarizer):
 
             logger.info(f"Sending metrics payload to NVIDIA API (Model: {model})...")
 
-            # The user provided a streaming example, but the AISummarizer contract
-            # expects a single returned string. We will consume the stream and concatenate.
             completion = client.chat.completions.create(
                 model=model,
                 messages=[
@@ -64,24 +62,13 @@ class NvidiaAISummarizer(AISummarizer):
                 temperature=0.5,
                 top_p=1,
                 max_tokens=1024,
-                stream=True
+                stream=False
             )
 
-            summary_chunks = []
-            for chunk in completion:
-                if not getattr(chunk, "choices", None):
-                    continue
-                if chunk.choices[0].delta.content is not None:
-                    summary_chunks.append(chunk.choices[0].delta.content)
-            
-            content = "".join(summary_chunks)
-
-            if content:
-                return content
-            else:
-                raise RuntimeError(
-                    "AI backend error: NVIDIA API returned an empty response."
-                )
+            if not completion.choices or not completion.choices[0].message.content:
+                raise RuntimeError("AI backend error: NVIDIA API returned an empty response.")
+                
+            return completion.choices[0].message.content
 
         except RuntimeError:
             raise
