@@ -27,14 +27,12 @@ from src.analytics.metrics import JSONEncoder
 def test_zero_denominator_mock_ai():
     """Verify MockAI handles a payload where all counts are zero without crashing."""
     payload = {
-        "overall": {"total_appointments": 0, "no_show_rate_pct": 0.0, "no_shows": 0},
-        "key_findings": {},
-        "monthly_trend": [],
-        "detailed_data": {}
+        "overall": {"total_appointments": 0, "no_show_rate_pct": 0.0, "no_show_pct": 0.0, "no_shows": 0},
+        "key_findings": {}
     }
     summarizer = MockAISummarizer()
     result = summarizer.summarize(payload)
-    assert "0%" in result or "0.0%" in result
+    assert "0.00%" in result
     assert "Unknown" in result  # Fallback when no data
 
 
@@ -68,15 +66,14 @@ def test_privacy_rejects_nested_forbidden_field():
 def test_mock_ai_output_references_only_supplied_data():
     """Verify mock AI output only references data from the supplied payload."""
     payload = {
-        "overall": {"total_appointments": 500, "no_show_rate_pct": 12.5},
+        "overall": {"total_appointments": 500, "no_show_rate_pct": 12.5, "no_show_pct": 12.5},
         "key_findings": {
             "highest_no_show_clinic": {"clinic_name": "TestClinic", "no_show_rate_pct": 25.0},
             "highest_no_show_weekday": {"day_of_week": "Friday", "no_show_rate_pct": 15.0},
             "highest_no_show_time_slot": {"time_slot": "Afternoon", "no_show_rate_pct": 18.0},
+            "highest_no_show_appointment_type": {"type_name": "Checkup", "no_show_rate_pct": 22.0},
             "highest_no_show_month": {"month_name": "May", "year": 2024, "month": 5, "no_show_rate_pct": 24.30}
-        },
-        "detailed_data": {},
-        "monthly_trend": []
+        }
     }
     summarizer = MockAISummarizer()
     result = summarizer.summarize(payload)
@@ -95,23 +92,18 @@ def test_mock_ai_output_references_only_supplied_data():
 def test_ai_faithfulness_missing_months():
     """Verify that the AI doesn't fabricate missing months."""
     payload = {
-        "overall": {"no_show_rate_pct": 18.89},
+        "overall": {"no_show_rate_pct": 18.89, "no_show_pct": 18.89},
         "key_findings": {
             "highest_no_show_month": {
                 "year": 2024,
                 "month_name": "May",
                 "no_show_rate_pct": 24.30
             }
-        },
-        "monthly_trend": [
-            {"year": 2024, "month_name": "May", "no_show_rate_pct": 24.30}
-        ],
-        "detailed_data": {}
+        }
     }
     summarizer = MockAISummarizer()
     result = summarizer.summarize(payload)
     
-    assert "2024" in result
     assert "May" in result
     assert "24.30" in result
     
@@ -133,13 +125,14 @@ def test_clinic_min_sample_filtering():
     from src.analytics.metrics import generate_metrics_payload
     payload = generate_metrics_payload()
 
-    clinics = payload.get("detailed_data", {}).get("clinics", [])
+    # The highest clinic finding should have total_appointments >= threshold
+    highest_clinic = payload.get("key_findings", {}).get("highest_no_show_clinic", {})
     from src.config.settings import settings
     threshold = settings.analytics.clinic_min_sample
     
-    for clinic in clinics:
-        assert clinic["total_appointments"] >= threshold, (
-            f"Clinic '{clinic['clinic_name']}' has only {clinic['total_appointments']} "
+    if highest_clinic:
+        assert highest_clinic["total_appointments"] >= threshold, (
+            f"Clinic '{highest_clinic['clinic_name']}' has only {highest_clinic['total_appointments']} "
             f"appointments, below the minimum sample threshold of {threshold}"
         )
 

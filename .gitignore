@@ -40,12 +40,19 @@ Thumbs.db
 desktop.ini
 
 # ==================================================
-# Data — keep raw (synthetic), ignore outputs
+# Data — generated at runtime, ignore all outputs
 # ==================================================
+data/raw/*
 data/processed/*
 data/rejected/*
+!data/raw/.gitkeep
 !data/processed/.gitkeep
 !data/rejected/.gitkeep
+
+# ==================================================
+# AI session context (internal dev notes)
+# ==================================================
+context.md
 
 # ==================================================
 # Docker

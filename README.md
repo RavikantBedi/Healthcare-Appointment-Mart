@@ -139,22 +139,8 @@ Python precomputes:
 **The AI is NOT used to calculate or rank metrics.**
 AI is ONLY used to convert precomputed findings into a human-readable summary.
 
-**Architecture Flow:**
-```text
-SQL
-  ↓
-Python
-  ↓
-precompute ALL numbers/rankings/differences
-  ↓
-privacy validator
-  ↓
-overall + key_findings
-  ↓
-Qwen (or Mock/Gemini)
-  ↓
-Markdown report
-```
+**Architecture:**
+Metrics → key_findings → privacy validation → AISummarizer → Mock / Ollama → summary
 
 ## 11. AI Faithfulness / Hallucination Control
 
