@@ -128,6 +128,34 @@ def test_grok_missing_key(monkeypatch):
     with pytest.raises(RuntimeError, match="XAI_API_KEY is not set"):
         summarizer.summarize(payload)
 
+def test_nvidia_interface_contract():
+    from src.ai.nvidia_model import NvidiaAISummarizer
+    assert isinstance(NvidiaAISummarizer(), AISummarizer)
+
+def test_factory_selects_nvidia(monkeypatch):
+    from src.ai.factory import get_summarizer
+    from src.ai.nvidia_model import NvidiaAISummarizer
+    from src.config.settings import Settings, AISettings
+    
+    mock_settings = Settings(ai=AISettings(backend="nvidia"))
+    monkeypatch.setattr("src.ai.factory.settings", mock_settings)
+    
+    summarizer = get_summarizer()
+    assert isinstance(summarizer, NvidiaAISummarizer)
+
+def test_nvidia_missing_key(monkeypatch):
+    from src.ai.nvidia_model import NvidiaAISummarizer
+    from src.config.settings import Settings, AISettings
+    
+    mock_settings = Settings(ai=AISettings(nvidia_api_key=""))
+    monkeypatch.setattr("src.ai.nvidia_model.settings", mock_settings)
+    
+    summarizer = NvidiaAISummarizer()
+    payload = {"overall_metrics": [{"total_appointments": 100}]}
+    
+    with pytest.raises(RuntimeError, match="NVIDIA_API_KEY is not set"):
+        summarizer.summarize(payload)
+
 def test_factory_unknown_backend(monkeypatch):
     from src.ai.factory import get_summarizer
     from src.config.settings import Settings, AISettings

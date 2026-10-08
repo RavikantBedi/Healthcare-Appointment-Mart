@@ -33,6 +33,14 @@ This project supports multiple AI backends for summarizing the aggregated, priva
   - `XAI_API_KEY=your_key_here`
   - `GROK_MODEL=grok-3-mini`
 
+### 5. NVIDIA
+- **Backend:** `AI_BACKEND=nvidia`
+- **Description:** Cloud-based provider using the NVIDIA API (via OpenAI client).
+- **Requirements:** Needs the `openai` package and an active API key.
+- **Configuration:**
+  - `NVIDIA_API_KEY=your_key_here`
+  - `NVIDIA_MODEL=z-ai/glm-5.3`
+
 ### Privacy Enforcement
 All AI models, regardless of the configured backend, must pass through the **same** Privacy Validator (`src.ai.privacy.validate_privacy`). If any forbidden personal fields (such as `patient_id` or `date_of_birth`) are detected in the payload, the pipeline will immediately halt with a `ValueError: PRIVACY VIOLATION`, completely blocking the external API request.
 

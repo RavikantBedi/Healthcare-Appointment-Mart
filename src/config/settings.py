@@ -60,6 +60,9 @@ class AISettings:
     # Grok
     xai_api_key: str = field(default_factory=lambda: os.getenv("XAI_API_KEY", ""))
     grok_model: str = field(default_factory=lambda: os.getenv("GROK_MODEL", "grok-3-mini"))
+    # NVIDIA
+    nvidia_api_key: str = field(default_factory=lambda: os.getenv("NVIDIA_API_KEY", ""))
+    nvidia_model: str = field(default_factory=lambda: os.getenv("NVIDIA_MODEL", "z-ai/glm-5.3"))
 
 
 @dataclass(frozen=True)

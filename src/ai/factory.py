@@ -8,6 +8,7 @@ Supported backends:
     ollama  → OllamaAISummarizer  (local LLM via HTTP)
     gemini  → GeminiAISummarizer  (Google Gemini API, key required)
     grok    → GrokAISummarizer    (xAI Grok API, key required)
+    nvidia  → NvidiaAISummarizer  (NVIDIA API, key required)
 """
 
 from src.config.settings import settings
@@ -16,7 +17,7 @@ from src.config.logging_config import get_logger
 
 logger = get_logger(__name__)
 
-_VALID_BACKENDS = {"mock", "ollama", "gemini", "grok"}
+_VALID_BACKENDS = {"mock", "ollama", "gemini", "grok", "nvidia"}
 
 
 def get_summarizer() -> AISummarizer:
@@ -43,6 +44,11 @@ def get_summarizer() -> AISummarizer:
         from src.ai.grok_model import GrokAISummarizer
         logger.info("Initializing Grok AI backend.")
         return GrokAISummarizer()
+
+    elif backend == "nvidia":
+        from src.ai.nvidia_model import NvidiaAISummarizer
+        logger.info("Initializing NVIDIA AI backend.")
+        return NvidiaAISummarizer()
 
     else:  # mock (default)
         from src.ai.mock_model import MockAISummarizer
