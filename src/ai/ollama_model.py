@@ -42,7 +42,7 @@ class OllamaAISummarizer(AISummarizer):
         
         try:
             logger.info(f"Sending metrics payload to Ollama (Model: {model}) at {url}...")
-            response = requests.post(url, json=payload, timeout=30.0)
+            response = requests.post(url, json=payload, timeout=120.0)
             response.raise_for_status()
             
             result = response.json()
