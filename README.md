@@ -245,9 +245,11 @@ docker compose up -d
 *Wait a few seconds for the database container to initialize.*
 
 ### Step 5: Generate Synthetic Data
-Run the data generator to create the raw synthetic CSVs inside `data/raw/`:
+Run the data generator to create the raw synthetic CSVs inside `data/raw/`.
+> **Important:** Always run Python scripts from the **project root** using `-m` (module mode) — this ensures the `src` package is resolved correctly.
+
 ```bash
-python src/data_generation/generate_data.py
+python -m src.data_generation.generate_data
 ```
 
 ### Step 6: Run the ETL Pipeline & AI Summary
