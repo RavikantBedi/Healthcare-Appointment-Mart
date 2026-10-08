@@ -109,10 +109,18 @@ def run_pipeline():
             
         # 8. Generate Analytics Metrics Payload
         from src.analytics.metrics import generate_metrics_payload, save_metrics_payload
-        save_metrics_payload()
+        from src.analytics.report_builder import build_structured_report
+        
+        payload = generate_metrics_payload()
+        save_metrics_payload(payload)
+        
+        # 8.1 Generate and save deterministic structured report
+        report_text = build_structured_report(payload)
+        with open("data/processed/analytics_report.md", "w", encoding="utf-8") as f:
+            f.write(report_text)
+        logger.info("Saved deterministic analytics report to data/processed/analytics_report.md")
         
         # 9. AI Summarization
-        payload = generate_metrics_payload()
         from src.ai.factory import get_summarizer
         summarizer = get_summarizer()
         

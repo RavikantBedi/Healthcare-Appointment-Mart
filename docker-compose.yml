@@ -28,6 +28,7 @@ services:
   app:
     build: .
     container_name: healthcare_mart_app
+    profiles: ["pipeline"]
     env_file: .env
     environment:
       POSTGRES_HOST: db

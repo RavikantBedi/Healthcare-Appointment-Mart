@@ -97,10 +97,10 @@ flowchart TD
 
 Extract → Validate → Stage → Transform → Load Core → Load Mart
 
-- **Data validation**: Validates inputs using Pydantic models.
+- **Data validation**: Validation is implemented using Pandas-based validation functions with explicit required-field, duplicate, foreign-key, status, and date rules.
 - **Rejected records**: Isolates invalid records during extraction so valid records can continue.
 - **Transformations**: Derives fields such as `no_show_flag` and `time_slot`.
-- **Privacy stripping**: Ensures protected personal fields do not flow into the analytics output layer.
+- **Privacy stripping**: Ensures protected direct personal fields do not flow into the analytics output layer.
 
 ## 8. Data Quality
 
@@ -108,7 +108,7 @@ Major validation rules enforced:
 - Duplicate appointment detection
 - Foreign-key validation
 - Status validation
-- Date validation
+- Date and time validation
 - Required fields
 - Invalid record quarantine
 
@@ -137,7 +137,7 @@ Python precomputes:
 - lowest month
 
 **The AI is NOT used to calculate or rank metrics.**
-AI is ONLY used to insert precomputed findings into a strict 4-section Markdown template (Executive Summary, Key Observed Patterns, Operational Observation, Limitation) to ensure zero hallucination.
+AI is ONLY used to insert precomputed findings into a strict 4-section Markdown template (Executive Summary, Key Observed Patterns, Operational Observation, Limitation). The LLM is restricted to precomputed findings, and automated tests verify that the implemented summary path does not introduce unsupported values or cross-dimension relationships.
 
 **Architecture:**
 Metrics → key_findings → privacy validation → AISummarizer → Mock / Ollama → summary
@@ -165,12 +165,11 @@ The tested outputs were fully consistent with the supplied metrics.
 ## 12. Privacy
 
 Raw synthetic input may include synthetic personal fields for demonstrating the privacy boundary. However:
-- Core does not retain raw personal fields.
-- Mart does not retain raw personal fields.
-- Analytics payload does not contain raw personal fields.
-- AI payload does not contain patient-level personal fields.
+- Raw direct identifiers (e.g. `first_name`, `last_name`, `phone`, `email`, `address`) are stripped before the Core layer.
+- The Core and Mart models still contain analytical patient fields such as `patient_id`, `date_of_birth`, and `zip_code` to allow for relational integrity and demographic aggregations.
+- AI receives only aggregated metrics. Patient-level fields are never sent to the AI.
 
-Protected fields: `first_name`, `last_name`, `phone`, `email`, `address`, `date_of_birth`, `patient_id`.
+Protected fields explicitly forbidden in the AI payload: `first_name`, `last_name`, `phone`, `email`, `address`, `date_of_birth`, `patient_id`.
 An active privacy validator strictly enforces this before API calls.
 
 ## 13. Testing
@@ -245,6 +244,8 @@ docker compose up -d
 *Wait a few seconds for the database container to initialize.*
 
 ### Step 5: Generate Synthetic Data
+The full 20,000-row runtime dataset is NOT committed to Git. A small, clearly synthetic sample dataset is available in `data/sample/` for reference. The `data/raw/` folder will hold the generated runtime data (ignored by Git).
+
 Run the data generator to create the raw synthetic CSVs inside `data/raw/`.
 > **Important:** Always run Python scripts from the **project root** using `-m` (module mode) — this ensures the `src` package is resolved correctly.
 
@@ -277,19 +278,20 @@ $env:OLLAMA_MODEL="qwen3:1.7b"
 python -m src.etl.pipeline
 ```
 
-## 18. Expected Output
+## 17. Expected Output
 
 - Row counts reconciled successfully (20,000 appointments)
 - Metrics payload generated successfully. Privacy boundary verified.
 - 4-Section AI NO-SHOW SUMMARY (Executive Summary, Key Observed Patterns, Operational Observation, Limitation)
 
-## 19. Configuration
+## 18. Configuration
 
+Configuration uses `python-dotenv`, `os.getenv`, and standard Python `dataclasses`.
 - `.env.example` acts as a template.
 - `.env` is ignored by Git.
 - No secrets are committed to the repository.
 
-## 20. Limitations
+## 19. Limitations
 
 - Data is synthetic.
 - Deterministic dataset.
@@ -298,7 +300,7 @@ python -m src.etl.pipeline
 - Local LLM output quality depends on the model capabilities.
 - The project is an assessment-sized data platform, not a clinical production system.
 
-## 21. Future Improvements (Target Production Architecture)
+## 20. Future Improvements (Target Production Architecture)
 
 For migrating this assessment-scale pipeline to an enterprise production environment, the following architectural enhancements would be recommended:
 

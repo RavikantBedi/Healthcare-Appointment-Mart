@@ -53,21 +53,47 @@ def generate_metrics_payload() -> Dict[str, Any]:
     appt_types_data = _query_to_dict_list(engine, "SELECT * FROM analytics.vw_appointment_type_no_show_rate")
     monthly_data = _query_to_dict_list(engine, "SELECT * FROM analytics.vw_monthly_no_show_trend")
 
+    overall = dict(overall_data[0]) if overall_data else {}
+    
+    # Calculate deterministic percentages for overall
+    total_appts = int(overall.get('total_appointments', 0))
+    def safe_pct(num, den):
+        return round((float(num) / float(den)) * 100, 2) if den > 0 else 0.0
+        
+    overall['completed_pct'] = safe_pct(overall.get('completed', 0), total_appts)
+    overall['cancelled_pct'] = safe_pct(overall.get('cancelled', 0), total_appts)
+    overall['no_show_pct'] = safe_pct(overall.get('no_shows', 0), total_appts)
+    overall['still_scheduled_pct'] = safe_pct(overall.get('still_scheduled', 0), total_appts)
+    # Ensure no_show_rate_pct is consistently named
+    overall_no_show_rate = float(overall.get('no_show_rate_pct', overall['no_show_pct']))
+    overall['no_show_rate_pct'] = overall_no_show_rate
+
     def get_max(items: List[Dict], key: str) -> Dict:
-        return max(items, key=lambda x: float(x[key])) if items else {}
+        if not items: return {}
+        item = dict(max(items, key=lambda x: float(x[key])))
+        item['difference_from_overall_pp'] = round(float(item[key]) - overall_no_show_rate, 2)
+        return item
 
     def get_min(items: List[Dict], key: str) -> Dict:
-        return min(items, key=lambda x: float(x[key])) if items else {}
+        if not items: return {}
+        item = dict(min(items, key=lambda x: float(x[key])))
+        item['difference_from_overall_pp'] = round(float(item[key]) - overall_no_show_rate, 2)
+        return item
+        
+    highest_month = get_max(monthly_data, "no_show_rate_pct")
+    lowest_month = get_min(monthly_data, "no_show_rate_pct")
+    month_diff = round(float(highest_month['no_show_rate_pct']) - float(lowest_month['no_show_rate_pct']), 2) if highest_month and lowest_month else 0.0
 
     payload = {
-        "overall": overall_data[0] if overall_data else {},
+        "overall": overall,
         "key_findings": {
             "highest_no_show_clinic": get_max(clinics_data, "no_show_rate_pct"),
             "highest_no_show_weekday": get_max(weekdays_data, "no_show_rate_pct"),
             "highest_no_show_time_slot": get_max(time_slots_data, "no_show_rate_pct"),
             "highest_no_show_appointment_type": get_max(appt_types_data, "no_show_rate_pct"),
-            "highest_no_show_month": get_max(monthly_data, "no_show_rate_pct"),
-            "lowest_no_show_month": get_min(monthly_data, "no_show_rate_pct")
+            "highest_no_show_month": highest_month,
+            "lowest_no_show_month": lowest_month,
+            "highest_lowest_month_difference_pp": month_diff
         },
         "monthly_trend": monthly_data,
         "detailed_data": {
@@ -87,10 +113,8 @@ def generate_metrics_payload() -> Dict[str, Any]:
     return payload
 
 
-def save_metrics_payload(filepath: str = "data/processed/metrics_payload.json") -> None:
+def save_metrics_payload(payload: Dict[str, Any], filepath: str = "data/processed/metrics_payload.json") -> None:
     """Save the metrics payload to a JSON file."""
-    payload = generate_metrics_payload()
-    
     with open(filepath, 'w', encoding='utf-8') as f:
         json.dump(payload, f, cls=JSONEncoder, indent=4)
         

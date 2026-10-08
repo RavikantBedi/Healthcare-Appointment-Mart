@@ -157,7 +157,7 @@ def validate_appointments(
     mask = ~df['status'].isin(valid_statuses) & df['status'].notna() & (df['status'] != '')
     _add_error(df, mask, f"Invalid status (must be one of {valid_statuses})")
 
-    # Rule 5: Dates
+    # Rule 5: Dates and Times
     try:
         parsed_dates = pd.to_datetime(df['appointment_date'], format='%Y-%m-%d', errors='coerce')
         
@@ -174,6 +174,24 @@ def validate_appointments(
         _add_error(df, range_mask & valid_date_mask, "appointment_date out of bounds (must be 2023-01-01 to 2026-12-31)")
     except Exception:
         _add_error(df, pd.Series([True]*len(df), index=df.index), "Invalid appointment_date processing failed")
+
+    # Time format check (allow HH:MM or HH:MM:SS)
+    try:
+        parsed_times = pd.to_datetime(df['appointment_time'], format='%H:%M:%S', errors='coerce').fillna(
+                       pd.to_datetime(df['appointment_time'], format='%H:%M', errors='coerce'))
+        time_mask = parsed_times.isna() & df['appointment_time'].notna() & (df['appointment_time'] != '')
+        _add_error(df, time_mask, "Invalid appointment_time format")
+    except Exception:
+        _add_error(df, pd.Series([True]*len(df), index=df.index), "Invalid appointment_time processing failed")
+
+    # Created at timestamp check (if present)
+    if 'created_at' in df.columns:
+        try:
+            parsed_created = pd.to_datetime(df['created_at'], errors='coerce')
+            created_mask = parsed_created.isna() & df['created_at'].notna() & (df['created_at'] != '')
+            _add_error(df, created_mask, "Invalid created_at timestamp format")
+        except Exception:
+            _add_error(df, pd.Series([True]*len(df), index=df.index), "Invalid created_at processing failed")
 
     # Split
     is_invalid = df['validation_errors'] != ''

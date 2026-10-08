@@ -65,3 +65,33 @@ def test_metrics_payload_types():
     from src.analytics.metrics import JSONEncoder
     # If json.dumps succeeds without error, all types are handled
     json.dumps(payload, cls=JSONEncoder)
+
+
+def test_metrics_payload_derived_fields():
+    """Verify that the real production payload includes the deterministically derived fields
+    required by the report builder."""
+    payload = generate_metrics_payload()
+    
+    overall = payload.get("overall", {})
+    assert "completed_pct" in overall
+    assert "cancelled_pct" in overall
+    assert "no_show_pct" in overall
+    assert "still_scheduled_pct" in overall
+    
+    # Check that key findings have difference_from_overall_pp
+    key_findings = payload.get("key_findings", {})
+    expected_findings = [
+        "highest_no_show_clinic",
+        "highest_no_show_weekday",
+        "highest_no_show_time_slot",
+        "highest_no_show_appointment_type",
+        "highest_no_show_month",
+        "lowest_no_show_month"
+    ]
+    for key in expected_findings:
+        finding = key_findings.get(key, {})
+        if finding:  # Only if there is data
+            assert "difference_from_overall_pp" in finding, f"{key} missing difference_from_overall_pp"
+            
+    # Check monthly specific field
+    assert "highest_lowest_month_difference_pp" in key_findings, "Missing highest_lowest_month_difference_pp"

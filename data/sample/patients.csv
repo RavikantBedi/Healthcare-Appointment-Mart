@@ -1,0 +1,3 @@
+patient_id,first_name,last_name,date_of_birth,gender,phone,email,address,zip_code
+P-00001,John,Doe,1980-05-15,M,555-0100,john.doe@example.com,123 Fake St,90210
+P-00002,Jane,Smith,1992-11-20,F,555-0101,jane.smith@example.com,456 Mockingbird Ln,90211

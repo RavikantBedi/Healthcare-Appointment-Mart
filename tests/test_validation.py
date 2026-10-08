@@ -113,6 +113,27 @@ def test_appointment_validation_rules():
             "appointment_date": "2019-01-01",
             "appointment_time": "10:30:00",
             "status": "Scheduled"
+        },
+        {
+            # 5: Invalid appointment time
+            "appointment_id": str(uuid4()),
+            "patient_id": valid_patient,
+            "clinic_id": valid_clinic,
+            "appointment_type_id": valid_type,
+            "appointment_date": "2024-05-15",
+            "appointment_time": "invalid_time",
+            "status": "Scheduled"
+        },
+        {
+            # 6: Invalid created_at
+            "appointment_id": str(uuid4()),
+            "patient_id": valid_patient,
+            "clinic_id": valid_clinic,
+            "appointment_type_id": valid_type,
+            "appointment_date": "2024-05-15",
+            "appointment_time": "10:30",
+            "status": "Scheduled",
+            "created_at": "bad_timestamp"
         }
     ]
     
@@ -131,9 +152,9 @@ def test_appointment_validation_rules():
         valid_ids['types']
     )
     
-    # 1 valid (the original 0), 6 rejected (missing patient, bad clinic, bad status, bad date, 2x duplicate)
+    # 1 valid (the original 0), 8 rejected (missing patient, bad clinic, bad status, bad date, bad time, bad created_at, 2x duplicate)
     assert len(valid_df) == 1
-    assert len(rejected_df) == 6
+    assert len(rejected_df) == 8
     
     errors = " ".join(rejected_df['validation_errors'].tolist())
     
@@ -142,3 +163,5 @@ def test_appointment_validation_rules():
     assert "Invalid status" in errors
     assert "out of bounds" in errors
     assert "Duplicate appointment_id" in errors
+    assert "Invalid appointment_time format" in errors
+    assert "Invalid created_at timestamp format" in errors

@@ -9,19 +9,13 @@ set -e
 
 echo "=== Initializing Healthcare Appointment Mart Database ==="
 
-psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL
+# Execute SQL files in dependency order
+psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" -f /sql/00_schemas.sql
+psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" -f /sql/01_staging/create_staging_tables.sql
+psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" -f /sql/02_core/create_core_tables.sql
+psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" -f /sql/03_mart/create_dim_tables.sql
+psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" -f /sql/03_mart/create_fact_table.sql
+psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" -f /sql/03_mart/populate_dim_date.sql
+psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" -f /sql/04_analytics/create_views.sql
 
-    -- Create schemas
-    CREATE SCHEMA IF NOT EXISTS staging;
-    CREATE SCHEMA IF NOT EXISTS core;
-    CREATE SCHEMA IF NOT EXISTS mart;
-    CREATE SCHEMA IF NOT EXISTS analytics;
-
-    -- Confirm
-    SELECT schema_name FROM information_schema.schemata
-    WHERE schema_name IN ('staging', 'core', 'mart', 'analytics')
-    ORDER BY schema_name;
-
-EOSQL
-
-echo "=== Schemas created successfully ==="
+echo "=== Database Structure created successfully ==="
