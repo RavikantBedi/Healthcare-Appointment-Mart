@@ -22,5 +22,20 @@ services:
       timeout: 5s
       retries: 5
 
+  # ================================================
+  # Data Pipeline Application
+  # ================================================
+  app:
+    build: .
+    container_name: healthcare_mart_app
+    env_file: .env
+    environment:
+      POSTGRES_HOST: db
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./data:/app/data
+
 volumes:
   pgdata:

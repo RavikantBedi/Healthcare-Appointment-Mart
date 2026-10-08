@@ -56,6 +56,12 @@ class AISettings:
 
 
 @dataclass(frozen=True)
+class AnalyticsSettings:
+    """Analytics layer configuration."""
+    clinic_min_sample: int = field(default_factory=lambda: int(os.getenv("CLINIC_MIN_SAMPLE", "50")))
+
+
+@dataclass(frozen=True)
 class DataGenerationSettings:
     """Synthetic data generation parameters."""
     seed: int = field(default_factory=lambda: int(os.getenv("DATA_SEED", "42")))
@@ -81,6 +87,7 @@ class Settings:
     """Top-level application settings container."""
     db: DatabaseSettings = field(default_factory=DatabaseSettings)
     ai: AISettings = field(default_factory=AISettings)
+    analytics: AnalyticsSettings = field(default_factory=AnalyticsSettings)
     data_gen: DataGenerationSettings = field(default_factory=DataGenerationSettings)
     paths: PathSettings = field(default_factory=PathSettings)
 

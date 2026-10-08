@@ -1,0 +1,7 @@
+appointment_type_id,type_name,description
+1,General Checkup,Annual routine checkup
+2,Follow-up,Follow-up on previous visit
+3,Vaccination,Immunization or flu shot
+4,Specialist Consult,Consultation with specialist
+5,Lab Test,Blood work or other lab tests
+6,Physical Therapy,Rehabilitation session

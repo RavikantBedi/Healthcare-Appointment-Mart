@@ -39,6 +39,10 @@ setup_logging()
 logger = get_logger(__name__)
 
 def run_pipeline():
+    if sys.version_info < (3, 10):
+        logger.error("Python 3.10 or higher is required.")
+        sys.exit(1)
+        
     logger.info("==================================================")
     logger.info("STARTING PIPELINE RUN")
     logger.info("==================================================")

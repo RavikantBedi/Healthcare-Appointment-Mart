@@ -13,4 +13,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Default command: run the full pipeline
-CMD ["python", "-m", "scripts.run_pipeline"]
+CMD ["python", "-m", "src.etl.pipeline"]

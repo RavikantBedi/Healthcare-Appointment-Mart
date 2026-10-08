@@ -40,10 +40,12 @@ class OllamaAISummarizer(AISummarizer):
         url = f"{settings.ai.ollama_host}/api/generate"
         model = settings.ai.ollama_model
         
+        from src.analytics.metrics import JSONEncoder
+        
         prompt = (
             f"{SYSTEM_PROMPT}\n\n"
             f"Here is the aggregated JSON data:\n"
-            f"{json.dumps(metrics, indent=2)}\n\n"
+            f"{json.dumps(metrics, cls=JSONEncoder, indent=2)}\n\n"
             f"Please provide the summary now."
         )
         

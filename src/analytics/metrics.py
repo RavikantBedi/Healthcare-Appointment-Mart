@@ -13,6 +13,7 @@ from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
 from src.config.logging_config import get_logger
+from src.config.settings import settings
 from src.etl.load import get_engine
 
 logger = get_logger(__name__)
@@ -43,13 +44,16 @@ def generate_metrics_payload() -> Dict[str, Any]:
     """
     logger.info("Generating Analytics Metrics payload...")
     engine = get_engine()
+    min_sample = settings.analytics.clinic_min_sample
     
     payload = {
         "overall_metrics": _query_to_dict_list(
             engine, "SELECT * FROM analytics.vw_overall_metrics"
         ),
         "clinic_no_show_rates": _query_to_dict_list(
-            engine, "SELECT * FROM analytics.vw_clinic_no_show_rate LIMIT 5"
+            engine,
+            f"SELECT * FROM analytics.vw_clinic_no_show_rate "
+            f"WHERE total_appointments >= {min_sample} LIMIT 5"
         ),
         "weekday_no_show_rates": _query_to_dict_list(
             engine, "SELECT * FROM analytics.vw_weekday_no_show_rate"
