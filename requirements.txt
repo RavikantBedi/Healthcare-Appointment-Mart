@@ -1,0 +1,16 @@
+# Core
+pandas==2.2.2
+psycopg2-binary==2.9.9
+sqlalchemy==2.0.30
+
+# Data generation
+Faker==25.2.0
+
+# Configuration
+python-dotenv==1.0.1
+
+# AI (Ollama HTTP API)
+requests==2.32.3
+
+# Testing
+pytest==8.2.2
