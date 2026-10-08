@@ -1,65 +1,414 @@
 # System Architecture
 
 ## 1. Architecture Overview
-The Healthcare Appointment Mart is a layered data pipeline built to process, validate, and analyze healthcare appointments while maintaining a strict privacy boundary for AI summarization.
 
-## 2. Data Flow
-Synthetic Data → Raw CSV → Extract → Validation → Staging → Transform → Core 3NF → Analytical Star Schema → Analytics Views → Precomputed Metrics + key_findings → Privacy Validator → AISummarizer Interface → Mock / Ollama / Optional Cloud Provider → Natural-Language Summary
+The Healthcare Appointment Mart is a **layered data platform** that ingests synthetic healthcare
+appointment records, validates them, and loads them through three isolated data layers before
+producing deterministic operational metrics and a privacy-safe AI summary.
 
-## 3. Raw Layer
-Contains synthetic CSV files simulating exports from external operational systems (`patients.csv`, `clinics.csv`, `appointment_types.csv`, `appointments.csv`).
+Two invariants govern the entire design:
 
-## 4. Staging Layer
-The staging layer (`staging_` tables) ingests raw data precisely as it is received after passing explicit Pandas-based validation. It provides a clean, 1:1 replica of the validated raw files within PostgreSQL.
+| Invariant | How it is enforced |
+| :--- | :--- |
+| **Privacy** — no direct personal identifier ever reaches the analytics layer or an AI backend | Stripped during transform with assertions, absent from Core/Mart DDL, and blocked by a payload validator |
+| **Faithfulness** — the LLM never computes or invents values | All math happens in SQL/Python; the model only verbalizes precomputed `key_findings` |
 
-## 5. Core 3NF
-The core layer normalizes the data into Third Normal Form (3NF). It enforces referential integrity between appointments, patients, clinics, and types, stripping away noise and redundant records.
+**Stack:** Python 3.10+ · Pandas · PostgreSQL 16 · SQLAlchemy · psycopg2 · Faker · pytest · Docker · Ollama/Gemini (optional)
 
-## 6. Analytical Mart
-A denormalized Star Schema built for fast analytics.
-- **Fact Table:** `fact_appointment` (grain: 1 row = 1 appointment)
-- **Dimension Tables:** `dim_patient`, `dim_clinic`, `dim_date`, `dim_appointment_type`
-
-## 7. Analytics Views
-SQL views layered over the Star Schema calculate deterministic metrics such as total counts, no-show rates by clinic, weekday, time slot, and monthly trends.
-
-## 8. Privacy Boundary
-Before leaving the core analytical area, metrics are validated to ensure absolutely zero Personal Identifiable Information (PII) flows to external consumers or AI APIs. 
-
-## 9. AI Interface
-An interface (`AISummarizer`) abstracts the underlying AI backend, enabling seamless swapping between different AI providers without changing the core business logic.
-
-## 10. Mock/Ollama Flow
-- **Mock:** Returns a deterministic summary using string interpolation. Completely offline.
-- **Ollama:** Calls a locally running instance of Ollama (Qwen3:1.7B) using a strict system prompt and heavily filtered metrics payload (`overall` + `key_findings`).
-
-## 11. Failure Handling
-Corrupt, malformed, or invalid rows are rejected at the validation stage and quarantined in memory/logs while valid rows proceed successfully. The pipeline does not crash due to isolated data anomalies.
-
-## 12. Configuration
-Configuration is loaded from `.env` using `python-dotenv`, `os.getenv`, and dataclass-based settings. It controls the database URL, selected AI backend, thresholds, and endpoints.
-
-## 13. Docker
-PostgreSQL runs via `docker-compose.yaml`. This ensures a standardized, isolated, and reproducible database environment.
-
-## 14. Testing
-Tests are orchestrated via Pytest. They validate ETL idempotency, data rules, privacy boundary constraints, AI output faithfulness, and mock behavior.
-
-## 15. Architecture Diagram
+## 2. End-to-End Data Flow
 
 ```mermaid
 flowchart TD
-    A[Synthetic Data / CSV] --> B[Extract]
-    B --> C[Validation (Pandas/custom rules)]
-    C -->|Rejects| D[Quarantine / Log]
-    C -->|Valid| E[Staging]
-    E --> F[Transform]
-    F --> G[Core 3NF]
-    G --> H[Analytical Star Schema]
-    H --> I[Analytics Views SQL]
-    I --> J[Precomputed Metrics Python]
-    J --> K[Privacy Validator]
-    K --> L[AISummarizer Interface]
-    L --> M[Mock / Ollama]
-    M --> N[Natural-Language Summary]
+    subgraph ORCHESTRATION["Orchestration — src/etl/pipeline.py"]
+        A["1. Extract<br/><i>src/etl/extract.py</i>"] --> B["2. Validate<br/><i>Pandas rules · src/validation</i>"]
+        B -->|Valid rows| C["3. Clear tables<br/><i>truncate-and-reload</i>"]
+        B -->|Invalid rows| Q[("data/rejected/<br/>*.csv")]
+        C --> D["4. Load Staging<br/><i>raw landing · PII present</i>"]
+        D --> E["5. Transform<br/><i>privacy strip + derivations</i>"]
+        E --> F["6. Load Core 3NF"]
+        F --> G["7. Load Mart<br/><i>star schema</i>"]
+        G --> H["8. Reconcile row counts"]
+    end
+
+    subgraph SERVING["Analytics & Reporting"]
+        H --> I[("Analytics Views<br/>6 aggregate-only views")]
+        I --> J["Metrics Payload<br/><i>src/analytics/metrics.py</i>"]
+        J --> K["Deterministic Report<br/><i>report_builder.py</i>"]
+        J --> L{"Privacy Validator<br/><i>src/ai/privacy.py</i>"}
+    end
+
+    subgraph AI["AI Summarization — AISummarizer interface"]
+        L -->|Allowed| M["Mock<br/><i>offline</i>"]
+        L -->|Allowed| N["Ollama<br/><i>local Qwen</i>"]
+        L -->|Allowed| O["Gemini<br/><i>cloud</i>"]
+        L -->|Blocked| X[("ValueError<br/>PRIVACY VIOLATION")]
+        M & N & O --> P["Natural-language<br/>NO-SHOW SUMMARY"]
+    end
+
+    style D fill:#fff3cd,stroke:#b8860b
+    style E fill:#d4edda,stroke:#28a745
+    style L fill:#f8d7da,stroke:#dc3545
+    style X fill:#f8d7da,stroke:#dc3545
+    style P fill:#d1ecf1,stroke:#0c5460
 ```
+
+## 3. Data Layers
+
+PostgreSQL hosts **four schemas**, each with a single responsibility. Data only moves forward.
+
+```mermaid
+flowchart LR
+    RAW["Raw CSVs<br/><i>data/raw/</i>"] --> S["<b>staging</b><br/>stg_* tables<br/>all VARCHAR · PII present"]
+    S --> C["<b>core</b><br/>3NF · typed · FK<br/>PII stripped"]
+    C --> M["<b>mart</b><br/>star schema<br/>surrogate keys"]
+    M --> V["<b>analytics</b><br/>6 views<br/>aggregate-only"]
+
+    style S fill:#fff3cd,stroke:#b8860b
+    style C fill:#d4edda,stroke:#28a745
+    style M fill:#d1ecf1,stroke:#0c5460
+    style V fill:#e2e3f3,stroke:#3f51b5
+```
+
+| Layer | Schema | Purpose | PII |
+| :--- | :--- | :--- | :--- |
+| Staging | `staging` | Faithful 1:1 landing copy of validated raw data | **Present** |
+| Core | `core` | Normalized 3NF model with full constraints | **Absent** |
+| Mart | `mart` | Denormalized star schema optimized for aggregation | **Absent** |
+| Analytics | `analytics` | Reusable aggregate-only views feeding metrics | **Absent** |
+
+> The **privacy boundary** sits between Staging and Core. Personal fields exist in `staging` for
+> traceability only and are never selected by any query that feeds metrics or AI.
+
+### 3.1 Raw Layer
+
+Synthetic CSVs generated by `src/data_generation/generate_data.py` (Faker, seed `42`) into `data/raw/`:
+
+`patients.csv` · `clinics.csv` · `appointment_types.csv` · `appointments.csv`
+
+A small committed sample lives in `data/sample/` for reference; the full 20,000-row runtime dataset
+is Git-ignored. All columns are read as strings so malformed values reach validation instead of
+being silently coerced.
+
+### 3.2 Validation Stage (`src/validation/validators.py`)
+
+Validation is **Pandas-based**, not schema-library based. Each rule appends a human-readable message
+to a `validation_errors` column; any row with at least one message is quarantined.
+
+| Rule | Applies to |
+| :--- | :--- |
+| Required fields present | All entities |
+| Primary-key uniqueness | All entities |
+| Controlled vocabulary (`gender`, `status`) | Patients, Appointments |
+| Date/time format and range (2023-01-01 → 2026-12-31) | Appointments |
+| Foreign keys (`patient_id`, `clinic_id`, `appointment_type_id`) | Appointments |
+
+Rejected rows are written to `data/rejected/*.csv` with their error reasons, while valid rows
+continue. The pipeline never crashes on isolated anomalies.
+
+### 3.3 Staging Layer
+
+Four `stg_*` tables mirror the raw files. Every column is `VARCHAR` with only a primary key — no
+foreign keys or `CHECK` constraints — so raw data lands exactly as received.
+
+### 3.4 Transform Stage (`src/etl/transform.py`)
+
+The privacy boundary is enforced here. The five direct identifiers
+(`first_name`, `last_name`, `phone`, `email`, `address`) are dropped, then each column is
+asserted absent — a leaked field raises immediately.
+
+Derivations applied:
+
+- `age_group` → `0-17`, `18-30`, `31-45`, `46-60`, `61+`
+- `no_show_flag` → `status == 'No-Show'`
+- `time_slot` → `Early Morning` (<10h), `Late Morning` (10–12h), `Afternoon` (12–15h), `Mid Afternoon` (15–17h), `Evening` (≥17h)
+- Data types cast to `DATE`, `TIME`, `TIMESTAMP`
+
+### 3.5 Core 3NF
+
+Fully typed and constrained, with **no personal name/contact columns by design**:
+
+- `core.patients` — `UUID` PK, `CHECK` on gender and age group
+- `core.clinics` — `UUID` PK, unique clinic name
+- `core.appointment_types` — `INTEGER` PK, unique type name
+- `core.appointments` — `UUID` PK, **three foreign keys**, status `CHECK`, date-range `CHECK`, plus five supporting indexes
+
+### 3.6 Analytical Mart (Star Schema)
+
+**Fact grain:** one row = one scheduled appointment, regardless of final status.
+
+```mermaid
+erDiagram
+    dim_patient ||--o{ fact_appointment : "patient_key"
+    dim_clinic ||--o{ fact_appointment : "clinic_key"
+    dim_date ||--o{ fact_appointment : "date_key"
+    dim_appointment_type ||--o{ fact_appointment : "appointment_type_key"
+
+    fact_appointment {
+        BIGSERIAL fact_id PK
+        UUID appointment_id UK
+        INTEGER patient_key FK
+        INTEGER clinic_key FK
+        INTEGER date_key FK
+        INTEGER appointment_type_key FK
+        TIME appointment_time
+        VARCHAR time_slot
+        VARCHAR status
+        BOOLEAN no_show_flag
+        INTEGER is_no_show
+        INTEGER is_completed
+        INTEGER is_cancelled
+    }
+    dim_patient {
+        SERIAL patient_key PK
+        UUID patient_id UK
+        VARCHAR gender
+        VARCHAR age_group
+        VARCHAR zip_code
+    }
+    dim_clinic {
+        SERIAL clinic_key PK
+        UUID clinic_id UK
+        VARCHAR clinic_name
+        VARCHAR clinic_type
+        VARCHAR city
+        VARCHAR state
+    }
+    dim_date {
+        INTEGER date_key PK
+        DATE full_date UK
+        INTEGER year
+        INTEGER month
+        VARCHAR month_name
+        VARCHAR day_of_week
+        INTEGER quarter
+        BOOLEAN is_weekend
+    }
+    dim_appointment_type {
+        SERIAL appointment_type_key PK
+        INTEGER appointment_type_id UK
+        VARCHAR type_name
+        VARCHAR description
+    }
+```
+
+Design notes:
+
+- **Surrogate keys** (`SERIAL`) decouple the mart from source system IDs; natural keys are retained for traceability.
+- **Additive measures** `is_no_show` / `is_completed` / `is_cancelled` are `INTEGER` 0/1 so views can `SUM()` directly.
+- **`dim_date`** is pre-populated (`populate_dim_date.sql`) and intentionally **excluded** from truncate-and-reload.
+- The fact row is built in SQL by joining Core to every dimension, so an unmatched dimension drops the row rather than producing a null key.
+
+### 3.7 Analytics Views
+
+Six views in `analytics`, all aggregate-only with no patient-level output:
+
+| View | Question answered |
+| :--- | :--- |
+| `vw_overall_metrics` | Status distribution and overall no-show rate |
+| `vw_clinic_no_show_rate` | Which clinics show the highest rates |
+| `vw_weekday_no_show_rate` | Which days of week show the highest rates |
+| `vw_time_slot_no_show_rate` | Which parts of the day show the highest rates |
+| `vw_appointment_type_no_show_rate` | Which visit types show the highest rates |
+| `vw_monthly_no_show_trend` | How rates move month over month |
+
+## 4. Privacy Boundary
+
+```mermaid
+flowchart LR
+    A["Aggregated<br/>metrics payload"] --> B{"validate_privacy<br/>substring scan over<br/>serialized payload"}
+    B -->|Clean| C["Passed to AI backend"]
+    B -->|Forbidden field| D["ValueError<br/>PRIVACY VIOLATION"]
+
+    style B fill:#f8d7da,stroke:#dc3545
+    style D fill:#f8d7da,stroke:#dc3545
+    style C fill:#d4edda,stroke:#28a745
+```
+
+Defence in depth — four independent layers must all hold:
+
+1. **Transform** — columns dropped, then asserted absent.
+2. **Schema** — Core, Mart, and the views have no personal columns to select.
+3. **Metrics payload** — serializes the payload and asserts `patient_id` / `first_name` never appear.
+4. **AI entry point** — `validate_privacy()` scans for every forbidden field before any request:
+
+   `patient_id` · `first_name` · `last_name` · `patient_name` · `phone` · `email` · `address` · `date_of_birth` · `appointment_id`
+
+## 5. Metrics & Reporting
+
+`src/analytics/metrics.py` queries the views and **precomputes every value the reader will see**:
+
+- Status counts and percentages (`completed_pct`, `no_show_pct`, …)
+- Highest/lowest clinic, weekday, time slot, appointment type, and month
+- `difference_from_overall_pp` for each key finding (percentage-point deltas)
+- Highest-to-lowest month spread
+
+Two outputs are produced:
+
+- **`data/processed/metrics_payload.json`** — the structured payload
+- **`data/processed/analytics_report.md`** — a deterministic 7-section markdown report from `report_builder.py`, built entirely with string interpolation and **no LLM**
+
+A clinic minimum-sample threshold (`CLINIC_MIN_SAMPLE`, default 50) keeps small-volume clinics from
+dominating the rankings.
+
+## 6. AI Interface
+
+```mermaid
+flowchart TD
+    P[("metrics_payload.json")] --> S{"Privacy<br/>Validator"}
+    S -->|pass| F["get_summarizer()<br/><i>src/ai/factory.py</i>"]
+    S -->|fail| E["ValueError<br/>pipeline stops"]
+
+    F -->|"AI_BACKEND=mock"| M["MockAISummarizer<br/>deterministic · offline"]
+    F -->|"AI_BACKEND=ollama"| O["OllamaAISummarizer<br/>local HTTP · qwen3:1.7b"]
+    F -->|"AI_BACKEND=gemini"| G["GeminiAISummarizer<br/>google-genai SDK"]
+
+    M & O & G --> R["4-section<br/>NO-SHOW SUMMARY"]
+
+    style S fill:#f8d7da,stroke:#dc3545
+    style E fill:#f8d7da,stroke:#dc3545
+    style R fill:#d1ecf1,stroke:#0c5460
+```
+
+All backends implement the single `AISummarizer` abstract interface (`src/ai/interface.py`), so
+swapping providers requires no change to pipeline logic.
+
+**Payload minimization:** only `overall` and `key_findings` are ever sent to a model —
+`monthly_trend` and `detailed_data` are deliberately withheld to keep the prompt small and prevent
+misinterpretation.
+
+**Hallucination control** (`src/ai/prompts.py`):
+
+- The model is forbidden from calculating, ranking, comparing, or deriving anything.
+- Dimension-isolation rules prevent cross-dimension claims (e.g. a clinic and a weekday finding may never be combined).
+- A fixed 4-section Markdown template constrains the output shape.
+- Ollama runs with `temperature: 0.0`, `think: false`, `num_predict: 300`.
+
+**Failure handling:** if a backend is unreachable, the summarizer raises `RuntimeError`; the
+pipeline logs a warning and finishes — metrics are still produced successfully.
+
+
+## 7. Idempotency & Reconciliation
+
+**Strategy: truncate-and-reload** (`clear_database()`), executed in reverse dependency order before
+each load. `mart.dim_date` is preserved because it is a static calendar dimension.
+
+After loading, the pipeline reconciles row counts across every layer:
+
+```
+raw extract = validated = staging = core = mart fact
+```
+
+Any mismatch logs `ROW COUNT MISMATCH DETECTED!`; equality logs `Row counts reconciled successfully.`
+
+This is deterministic and duplicate-free by construction — ideal for a snapshot dataset (see
+`docs/design_decision.md`, Decision 9). Production systems would replace it with CDC/upserts.
+
+## 8. Configuration
+
+Configuration is loaded from `.env` using **python-dotenv**, **`os.getenv`**, and **dataclass-based
+settings** (`src/config/settings.py`) — a frozen `Settings` singleton with no hardcoded secrets.
+
+| Group | Controls |
+| :--- | :--- |
+| `DatabaseSettings` | PostgreSQL user, password, host, port, database |
+| `AISettings` | `AI_BACKEND`, Ollama URL/model, Gemini key/model |
+| `AnalyticsSettings` | Clinic minimum sample threshold |
+| `DataGenerationSettings` | Seed and row counts for synthetic data |
+| `PathSettings` | Resolved project directories |
+
+`.env.example` is the committed template; `.env` is Git-ignored.
+
+## 9. Deployment
+
+```mermaid
+flowchart LR
+    subgraph HOST["Docker Compose"]
+        subgraph DB["db — postgres:16-alpine"]
+            P[("healthcare_mart<br/>volume: pgdata")]
+            I["init_db.sh<br/>runs sql/ 00 to 04<br/>on first boot"]
+        end
+        subgraph APP["app — pipeline (profile: pipeline)"]
+            C["python -m src.etl.pipeline"]
+        end
+        C -->|psycopg2 / SQLAlchemy| P
+        I --> P
+    end
+
+    style P fill:#d1ecf1,stroke:#0c5460
+```
+
+- **`db`** starts PostgreSQL 16-alpine, mounts `./sql`, and runs `scripts/init_db.sh` via
+  `docker-entrypoint-initdb.d`, creating all four schemas, tables, indexes, `dim_date`, and views in
+  dependency order. A `pg_isready` healthcheck gates readiness.
+- **`app`** builds from the `Dockerfile` (Python 3.11-slim + `postgresql-client`), sits behind the
+  `pipeline` profile so it runs on demand, sets `POSTGRES_HOST=db`, and shares `./data` with the host.
+
+Local (non-Docker) execution runs identically from the project root using module mode:
+`python -m src.etl.pipeline`.
+
+## 10. Observability & Failure Handling
+
+Structured logging (`src/config/logging_config.py`) emits a consistent format to stdout:
+
+```
+2026-10-08 09:15:04 | INFO     | src.etl.pipeline              | STARTING PIPELINE RUN
+```
+
+- **Data failures** — malformed rows are quarantined to `data/rejected/` with explicit reasons; valid rows proceed.
+- **Schema failures** — missing files or missing columns raise during extraction and stop the run.
+- **AI failures** — `RuntimeError` is caught and downgraded to a warning so the metrics pipeline still succeeds.
+- **Fatal failures** — the orchestrator logs the traceback and exits with a non-zero status.
+
+## 11. Testing
+
+Tests run via **pytest** (`pytest.ini`, 48 tests) and cover:
+
+| Area | What is proven |
+| :--- | :--- |
+| ETL | Extraction schema checks, transform derivations, load idempotency |
+| Validation | Rule enforcement and quarantine of an invalid fixture |
+| Analytics | Metrics payload shape and precomputed percentages |
+| Privacy | Every forbidden field triggers a violation, including nested payloads |
+| AI faithfulness | Exact values used, no invented months/rankings/causal language |
+| Prompt integration | Payload sent to the LLM contains only `overall` + `key_findings` |
+| Edge cases | Zero-denominator payloads, clinic minimum-sample threshold, backend fallback |
+
+## 12. Technology Map
+
+| Concern | Technology | Where |
+| :--- | :--- | :--- |
+| Language | Python 3.10+ | `src/` |
+| Dataframes | Pandas 2.2 | `src/etl/` |
+| Validation | Pandas rule functions | `src/validation/` |
+| Database | PostgreSQL 16 | `docker-compose.yml` |
+| ORM / driver | SQLAlchemy 2 + psycopg2 | `src/etl/load.py` |
+| SQL layer | DDL + analytics views | `sql/` |
+| Synthetic data | Faker (seeded) | `src/data_generation/` |
+| Configuration | python-dotenv + dataclasses | `src/config/settings.py` |
+| AI backends | Ollama (Qwen3:1.7B), Gemini, Mock | `src/ai/` |
+| Testing | pytest | `tests/` |
+| Containerization | Docker Compose | `Dockerfile`, `docker-compose.yml` |
+
+## 13. Architecture Diagram (single view)
+
+```mermaid
+flowchart TD
+    A["Synthetic Data / CSV"] --> B["Extract"]
+    B --> C["Validation (Pandas/custom rules)"]
+    C -->|Rejects| D["Quarantine / Log"]
+    C -->|Valid| E["Staging"]
+    E --> F["Transform<br/><i>privacy strip</i>"]
+    F --> G["Core 3NF"]
+    G --> H["Analytical Star Schema"]
+    H --> I["Analytics Views SQL"]
+    I --> J["Precomputed Metrics Python"]
+    J --> K["Privacy Validator"]
+    K --> L["AISummarizer Interface"]
+    L --> M["Mock / Ollama / Gemini"]
+    M --> N["Natural-Language Summary"]
+
+    style F fill:#d4edda,stroke:#28a745
+    style K fill:#f8d7da,stroke:#dc3545
+    style N fill:#d1ecf1,stroke:#0c5460
+```
+
