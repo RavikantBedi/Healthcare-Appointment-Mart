@@ -137,7 +137,7 @@ Python precomputes:
 - lowest month
 
 **The AI is NOT used to calculate or rank metrics.**
-AI is ONLY used to convert precomputed findings into a human-readable summary.
+AI is ONLY used to insert precomputed findings into a strict 4-section Markdown template (Executive Summary, Key Observed Patterns, Operational Observation, Limitation) to ensure zero hallucination.
 
 **Architecture:**
 Metrics → key_findings → privacy validation → AISummarizer → Mock / Ollama → summary
@@ -281,7 +281,7 @@ python -m src.etl.pipeline
 
 - Row counts reconciled successfully (20,000 appointments)
 - Metrics payload generated successfully. Privacy boundary verified.
-- AI NO-SHOW SUMMARY
+- 4-Section AI NO-SHOW SUMMARY (Executive Summary, Key Observed Patterns, Operational Observation, Limitation)
 
 ## 19. Configuration
 
