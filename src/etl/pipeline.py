@@ -103,6 +103,10 @@ def run_pipeline():
         else:
             logger.info("Row counts reconciled successfully.")
             
+        # 8. Generate Analytics Metrics Payload
+        from src.analytics.metrics import save_metrics_payload
+        save_metrics_payload()
+            
         logger.info("Pipeline completed successfully.")
         
     except Exception as e:
