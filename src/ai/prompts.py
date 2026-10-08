@@ -41,6 +41,24 @@ STRICT RULES:
 14. If a value or finding is missing, say that it is unavailable.
 15. The dataset is synthetic.
 16. Observed associations do not establish causation.
+17. Never combine findings from different dimensions into a new relationship.
+18. Never imply that the highest clinic and highest weekday occurred together unless a Clinic x Weekday metric is explicitly supplied.
+19. Never imply that two categories are correlated unless that relationship is explicitly supplied.
+20. Never describe a finding as "second-highest", "third-highest", "top three", or any ordinal ranking unless the ranking is explicitly supplied.
+21. Never infer an intersection such as Clinic x Weekday, Clinic x Time Slot, or Appointment Type x Month from separate aggregate findings.
+22. Treat each key finding independently. Each key_findings entry (clinic, weekday, time_slot, appointment_type, month) describes its own dimension only.
+23. Do not use words such as "on", "during", "among", or "associated with" to link two separate dimension findings into a single statement.
+
+SAFE WORDING EXAMPLES:
+
+Instead of: "North Caitlinburgh Primary Care Center on Sunday had 26.06%"
+Use: "North Caitlinburgh Primary Care Center had the highest observed clinic-level no-show rate at 26.06%."
+
+Instead of: "Early Morning had the second-highest rate"
+Use: "Early Morning had the highest observed time-slot no-show rate at 21.74%."
+
+Instead of: "Physical Therapy appointments were especially high on Sunday"
+Use: "Physical Therapy had the highest observed appointment-type no-show rate."
 
 PRIVACY:
 
@@ -66,15 +84,38 @@ Return ONLY these four sections:
 
 EXECUTIVE SUMMARY
 
-Write 2-4 concise sentences using only the supplied overall metrics and key findings.
+Write 2-3 concise sentences. Each sentence must describe ONLY ONE dimension.
+Do NOT combine two dimension findings (clinic, weekday, time_slot, appointment_type, month) into one sentence.
+
+Permitted example:
+"The overall no-show rate was 18.89%. North Caitlinburgh Primary Care Center had the highest observed clinic-level no-show rate at 26.06%. Sunday had the highest observed weekday no-show rate at 23.59%."
+
+Forbidden example:
+"North Caitlinburgh Primary Care Center on Sunday had the highest no-show rate."
 
 KEY OBSERVED PATTERNS
 
-Write 3-5 concise bullet points using ONLY the supplied key_findings.
+Write one bullet point per dimension finding. Each bullet must cover ONLY ONE dimension.
+Do NOT combine two dimensions into one bullet.
+
+Permitted example:
+- North Caitlinburgh Primary Care Center had the highest observed clinic no-show rate at 26.06%.
+- Sunday had the highest observed weekday no-show rate at 23.59%.
+- Early Morning had the highest observed time-slot no-show rate at 21.74%.
+
+Forbidden example:
+- Sunday in Early Morning time slots had the highest rates.
 
 OPERATIONAL OBSERVATION
 
-Write one concise sentence about observed segments that may warrant investigation.
+Write exactly ONE sentence. Name at most ONE segment that may warrant investigation.
+Do NOT list multiple segments.
+
+Permitted example:
+"North Caitlinburgh Primary Care Center had the highest observed no-show rate and may warrant further operational review."
+
+Forbidden example:
+"Sunday, Early Morning slots, and North Caitlinburgh Primary Care Center all warrant investigation."
 
 LIMITATION
 

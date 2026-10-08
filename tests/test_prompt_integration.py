@@ -312,3 +312,105 @@ def test_system_prompt_contains_required_four_sections():
         assert section in SYSTEM_PROMPT, (
             f"Required output section '{section}' is missing from SYSTEM_PROMPT."
         )
+
+
+# ===========================================================================
+# TEST 11: SYSTEM_PROMPT contains all 7 dimension-isolation rules
+# ===========================================================================
+def test_system_prompt_contains_dimension_isolation_rules():
+    """The SYSTEM_PROMPT must contain all seven new dimension-isolation rules."""
+    required_rule_fragments = [
+        "Never combine findings from different dimensions into a new relationship.",
+        "Never imply that the highest clinic and highest weekday occurred together",
+        "Never imply that two categories are correlated unless that relationship is explicitly supplied.",
+        "second-highest",
+        "Never infer an intersection such as Clinic x Weekday",
+        "Treat each key finding independently.",
+        "Do not use words such as",
+    ]
+    for fragment in required_rule_fragments:
+        assert fragment in SYSTEM_PROMPT, (
+            f"Dimension-isolation rule fragment '{fragment}' is missing from SYSTEM_PROMPT."
+        )
+
+
+# ===========================================================================
+# TEST 12: Mock backend does not combine clinic + weekday findings
+# ===========================================================================
+def test_mock_backend_does_not_combine_clinic_and_weekday(full_payload):
+    """Clinic name and weekday name must NEVER appear in the same sentence.
+    There is no Clinic x Weekday metric in the payload."""
+    mock = MockAISummarizer()
+    result = mock.summarize(full_payload)
+
+    clinic_name = full_payload["key_findings"]["highest_no_show_clinic"]["clinic_name"]
+    weekday_name = full_payload["key_findings"]["highest_no_show_weekday"]["day_of_week"]
+
+    # Split on sentence boundaries and check each sentence
+    sentences = [s.strip() for s in result.replace("\n", " ").split(".") if s.strip()]
+    for sentence in sentences:
+        has_clinic = clinic_name in sentence
+        has_weekday = weekday_name in sentence
+        assert not (has_clinic and has_weekday), (
+            f"Mock backend combined clinic '{clinic_name}' and weekday '{weekday_name}' "
+            f"into one sentence: '{sentence}'. No Clinic x Weekday metric was supplied."
+        )
+
+
+# ===========================================================================
+# TEST 13: Summary must not contain unsupported ordinal ranking language
+# ===========================================================================
+def test_mock_backend_no_unsupported_ordinal_rankings(full_payload):
+    """Ordinal ranking language ('second-highest', 'third-highest', 'top three')
+    must not appear — the payload only supplies the single highest per dimension."""
+    mock = MockAISummarizer()
+    result = mock.summarize(full_payload).lower()
+
+    forbidden_ordinals = [
+        "second-highest",
+        "second highest",
+        "third-highest",
+        "third highest",
+        "top three",
+        "top 3",
+        "2nd highest",
+        "3rd highest",
+    ]
+    for term in forbidden_ordinals:
+        assert term not in result, (
+            f"Mock backend introduced unsupported ordinal ranking '{term}'. "
+            "Only 'highest' (explicitly supplied) is permitted."
+        )
+
+
+# ===========================================================================
+# TEST 14: Every numeric value in the summary must exist in the payload
+# ===========================================================================
+def test_mock_backend_values_exist_in_payload(full_payload):
+    """Every percentage or count mentioned in the Mock summary must be
+    traceable to a value present in overall or key_findings."""
+    import re
+
+    mock = MockAISummarizer()
+    result = mock.summarize(full_payload)
+
+    # Collect all authorised values from the payload
+    authorised: set = set()
+    for v in full_payload.get("overall", {}).values():
+        if isinstance(v, (int, float)):
+            authorised.add(round(float(v), 2))
+    for finding in full_payload.get("key_findings", {}).values():
+        if isinstance(finding, dict):
+            for v in finding.values():
+                if isinstance(v, (int, float)):
+                    authorised.add(round(float(v), 2))
+
+    # Extract numeric tokens from the summary text
+    for num_str in re.findall(r"\d+\.?\d*", result):
+        num = round(float(num_str), 2)
+        if num > 100:  # skip years (e.g. 2024) and large appointment counts
+            continue
+        assert num in authorised, (
+            f"Value '{num}' appears in the Mock summary but is NOT in the supplied payload. "
+            f"Authorised values: {sorted(authorised)}"
+        )
