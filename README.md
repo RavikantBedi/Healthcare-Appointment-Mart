@@ -200,24 +200,76 @@ Example error log entry will show rejected appointments while the successful rec
 The current pipeline uses truncate-and-reload for deterministic reproducibility.
 This approach is simple and deterministic, making it suitable for this assessment, but is not intended as a full incremental production ingestion strategy.
 
-## 16. Setup
+## 16. Complete Setup & Execution Guide
 
-Prerequisites:
-- Git
-- Docker Desktop
-- Python 3.10+
-- Ollama (only if local AI is enabled)
+Follow these step-by-step instructions to run the project from a clean GitHub clone.
 
-## 17. Run the Project
+### Prerequisites:
+- **Git**
+- **Docker Desktop** (must be running for PostgreSQL)
+- **Python 3.10+**
 
-### Default/mock execution
+### Step 1: Clone the Repository
+```bash
+git clone https://github.com/RavikantBedi/Healthcare-Appointment-Mart-.git
+cd Healthcare-Appointment-Mart-
+```
+
+### Step 2: Set up Virtual Environment & Dependencies
+For Windows (PowerShell):
+```powershell
+python -m venv venv
+.\venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+```
+
+For Mac/Linux:
+```bash
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+```
+
+### Step 3: Configure Environment Variables
+Copy the example environment file to create your active `.env` file.
+```bash
+cp .env.example .env
+```
+*(No changes to `.env` are required for the default Mock run).*
+
+### Step 4: Start the PostgreSQL Database
+Ensure Docker Desktop is open, then run:
+```bash
+docker compose up -d
+```
+*Wait a few seconds for the database container to initialize.*
+
+### Step 5: Generate Synthetic Data
+Run the data generator to create the raw synthetic CSVs inside `data/raw/`:
+```bash
+python src/data_generation/generate_data.py
+```
+
+### Step 6: Run the ETL Pipeline & AI Summary
+To run the full end-to-end pipeline (Extract → Validate → Staging → Core → Mart → Analytics → Mock AI):
+
+**Windows (PowerShell):**
 ```powershell
 $env:AI_BACKEND="mock"
 python -m src.etl.pipeline
 ```
 
-### Local Ollama execution
+**Mac/Linux:**
+```bash
+AI_BACKEND=mock python -m src.etl.pipeline
+```
+
+---
+
+*(Optional)* **Local Ollama Execution**
+If you have Ollama installed locally with the `qwen3:1.7b` model pulled, you can run the pipeline with the real AI backend:
 ```powershell
+# Windows
 $env:AI_BACKEND="ollama"
 $env:OLLAMA_MODEL="qwen3:1.7b"
 python -m src.etl.pipeline
