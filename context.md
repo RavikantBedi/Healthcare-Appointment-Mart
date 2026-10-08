@@ -86,11 +86,11 @@ The system is built to definitively answer operational questions such as:
 - **Details:** Write `src/ai/interface.py` (abstract class), `mock_model.py` (deterministic fallback), and `ollama_model.py` (local LLM via HTTP). The system must pass the JSON payload from Phase 6 to the AI. The AI prompt must restrict the model to observing patterns without inventing causal claims.
 
 **Phase 8: Testing**
-- **Status:** 🟡 **PENDING**
+- **Status:** ✅ **DONE** (Commit `401e54c`)
 - **Details:** Write ≥5 tests in `tests/` using `pytest`. Must test: Metric correctness (no-show rate math), data validation (rejecting duplicates/bad FKs), privacy (proving the AI payload contains no personal fields), zero-denominator edge cases, and the Mock AI interface. Includes generating `tests/fixtures/invalid_appointments.csv` for the failure demo.
 
 **Phase 9: Pipeline Entrypoint & Docker Polish**
-- **Status:** ❌ TODO
+- **Status:** 🟡 **PENDING**
 - **Details:** Write `scripts/run_pipeline.py` as the main orchestrator (Data Gen -> ETL -> Analytics -> AI). Update `Dockerfile` and `docker-compose.yml` so that a clean `docker compose up --build` runs the entire project seamlessly from end to end.
 
 **Phase 10: Documentation**
@@ -102,16 +102,13 @@ The system is built to definitively answer operational questions such as:
 ## 5. Current State & Next Steps
 
 **Current Situation:**
-- Phase 7 complete: The AI Interface is implemented with a strict abstract boundary (`AISummarizer`).
-- `MockAISummarizer` and `OllamaAISummarizer` are both fully operational.
-- The pipeline gracefully skips AI processing without crashing if Ollama is requested but unavailable.
-- `validate_privacy()` aggressively inspects AI payloads, triggering `ValueError` if forbidden PII strings are detected.
-- The prompt is heavily structured to describe observed patterns while forbidding causal inventions.
+- Phase 8 complete: The full comprehensive audit is finished.
+- 18 tests are passing, proving validation, privacy, transformations, AI boundary limits, and zero-denominator safety.
+- The pipeline is fully idempotent.
+- The clean setup via `docker compose up --build` works flawlessly.
+- A `CLINIC_MIN_SAMPLE` threshold was added to prevent misleading rankings from small-sample clinics.
 
-**Immediate Next Step (Phase 8):**
-Implement final comprehensive testing.
-- Write/update tests as necessary to ensure high code coverage.
-- Focus on end-to-end edge cases.
-- Confirm all testing artifacts (e.g., fixtures) are complete.
+**Immediate Next Step (Phase 9/10):**
+Generate `README.md`, finalize documentation, and prepare for handover.
 
 *(Models reading this: Acknowledge you have read the context and proceed directly with executing Phase 3).*
