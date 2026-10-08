@@ -7,7 +7,6 @@ Supported backends:
     mock    → MockAISummarizer    (default, offline, deterministic)
     ollama  → OllamaAISummarizer  (local LLM via HTTP)
     gemini  → GeminiAISummarizer  (Google Gemini API, key required)
-    grok    → GrokAISummarizer    (xAI Grok API, key required)
 """
 
 from src.config.settings import settings
@@ -16,7 +15,7 @@ from src.config.logging_config import get_logger
 
 logger = get_logger(__name__)
 
-_VALID_BACKENDS = {"mock", "ollama", "gemini", "grok"}
+_VALID_BACKENDS = {"mock", "ollama", "gemini"}
 
 
 def get_summarizer() -> AISummarizer:
@@ -39,10 +38,6 @@ def get_summarizer() -> AISummarizer:
         logger.info("Initializing Gemini AI backend.")
         return GeminiAISummarizer()
 
-    elif backend == "grok":
-        from src.ai.grok_model import GrokAISummarizer
-        logger.info("Initializing Grok AI backend.")
-        return GrokAISummarizer()
 
     else:  # mock (default)
         from src.ai.mock_model import MockAISummarizer

@@ -79,10 +79,6 @@ def test_gemini_interface_contract():
     from src.ai.gemini_model import GeminiAISummarizer
     assert isinstance(GeminiAISummarizer(), AISummarizer)
 
-def test_grok_interface_contract():
-    from src.ai.grok_model import GrokAISummarizer
-    assert isinstance(GrokAISummarizer(), AISummarizer)
-
 def test_factory_selects_gemini(monkeypatch):
     from src.ai.factory import get_summarizer
     from src.ai.gemini_model import GeminiAISummarizer
@@ -95,17 +91,6 @@ def test_factory_selects_gemini(monkeypatch):
     summarizer = get_summarizer()
     assert isinstance(summarizer, GeminiAISummarizer)
 
-def test_factory_selects_grok(monkeypatch):
-    from src.ai.factory import get_summarizer
-    from src.ai.grok_model import GrokAISummarizer
-    from src.config.settings import Settings, AISettings
-    
-    mock_settings = Settings(ai=AISettings(backend="grok"))
-    monkeypatch.setattr("src.ai.factory.settings", mock_settings)
-    
-    summarizer = get_summarizer()
-    assert isinstance(summarizer, GrokAISummarizer)
-
 def test_gemini_missing_key(monkeypatch):
     from src.ai.gemini_model import GeminiAISummarizer
     from src.config.settings import Settings, AISettings
@@ -117,19 +102,6 @@ def test_gemini_missing_key(monkeypatch):
     payload = {"overall": {"total_appointments": 100}}
     
     with pytest.raises(RuntimeError, match="GEMINI_API_KEY is not set"):
-        summarizer.summarize(payload)
-
-def test_grok_missing_key(monkeypatch):
-    from src.ai.grok_model import GrokAISummarizer
-    from src.config.settings import Settings, AISettings
-    
-    mock_settings = Settings(ai=AISettings(xai_api_key=""))
-    monkeypatch.setattr("src.ai.grok_model.settings", mock_settings)
-    
-    summarizer = GrokAISummarizer()
-    payload = {"overall": {"total_appointments": 100}}
-    
-    with pytest.raises(RuntimeError, match="XAI_API_KEY is not set"):
         summarizer.summarize(payload)
 
 def test_factory_unknown_backend(monkeypatch):

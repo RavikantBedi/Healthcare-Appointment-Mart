@@ -57,10 +57,6 @@ class AISettings:
     # Gemini
     gemini_api_key: str = field(default_factory=lambda: os.getenv("GEMINI_API_KEY", ""))
     gemini_model: str = field(default_factory=lambda: os.getenv("GEMINI_MODEL", "gemini-3.8-flash"))
-    # Grok
-    xai_api_key: str = field(default_factory=lambda: os.getenv("XAI_API_KEY", ""))
-    grok_model: str = field(default_factory=lambda: os.getenv("GROK_MODEL", "grok-3-mini"))
-
 
 @dataclass(frozen=True)
 class AnalyticsSettings:

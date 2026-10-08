@@ -40,7 +40,7 @@ flowchart TD
         H[Python Metrics Aggregation]
         I[Privacy Validator Layer]
         J[AISummarizer Interface]
-        K[Mock / Local Ollama / Grok / Gemini]
+        K[Mock / Local Ollama / Gemini]
     end
     
     A --> B

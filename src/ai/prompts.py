@@ -1,7 +1,7 @@
 """
 Centralized AI System Prompt.
 
-Shared by all real AI providers (Ollama, Gemini, Grok) to ensure
+Shared by all real AI providers (Ollama, Gemini) to ensure
 consistent behavioral constraints across backends.
 """
 
