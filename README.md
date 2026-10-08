@@ -23,7 +23,7 @@ This project supports multiple AI backends for summarizing the aggregated, priva
 - **Requirements:** Needs the `google-genai` package and an active API key.
 - **Configuration:**
   - `GEMINI_API_KEY=your_key_here`
-  - `GEMINI_MODEL=gemini-2.0-flash`
+  - `GEMINI_MODEL=gemini-3.8-flash`
 
 ### 4. xAI Grok
 - **Backend:** `AI_BACKEND=grok`
