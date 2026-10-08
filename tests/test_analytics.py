@@ -7,25 +7,35 @@ import json
 import pytest
 from src.analytics.metrics import generate_metrics_payload
 
+
 def test_metrics_payload_structure():
     """Verify the metrics payload contains the expected aggregated keys."""
-    # This requires the DB to be populated. Since the test suite is run after
-    # the pipeline finishes, data will exist. If not, it will return empty lists,
-    # which is also structurally valid for this test.
     payload = generate_metrics_payload()
     
-    expected_keys = [
-        "overall_metrics",
-        "clinic_no_show_rates",
-        "weekday_no_show_rates",
-        "time_slot_no_show_rates",
-        "appointment_type_no_show_rates",
-        "monthly_trend"
-    ]
+    # Top-level keys
+    assert "overall" in payload
+    assert isinstance(payload["overall"], dict)
     
-    for key in expected_keys:
-        assert key in payload
-        assert isinstance(payload[key], list)
+    assert "key_findings" in payload
+    assert isinstance(payload["key_findings"], dict)
+    
+    assert "monthly_trend" in payload
+    assert isinstance(payload["monthly_trend"], list)
+    
+    assert "detailed_data" in payload
+    assert isinstance(payload["detailed_data"], dict)
+    
+    # Key findings sub-keys
+    expected_findings = [
+        "highest_no_show_clinic",
+        "highest_no_show_weekday",
+        "highest_no_show_time_slot",
+        "highest_no_show_appointment_type",
+        "highest_no_show_month",
+        "lowest_no_show_month"
+    ]
+    for key in expected_findings:
+        assert key in payload["key_findings"], f"Missing key_finding: {key}"
 
 
 def test_metrics_payload_privacy():
@@ -33,7 +43,6 @@ def test_metrics_payload_privacy():
     payload = generate_metrics_payload()
     
     from src.analytics.metrics import JSONEncoder
-    # Dump to string to easily check for keys/values
     payload_str = json.dumps(payload, cls=JSONEncoder)
     
     forbidden_strings = [
@@ -50,15 +59,9 @@ def test_metrics_payload_privacy():
 
 
 def test_metrics_payload_types():
-    """Verify that the data types in the payload are JSON serializable (e.g. no raw Decimals)."""
+    """Verify that the data types in the payload are JSON serializable."""
     payload = generate_metrics_payload()
     
-    # If json.dumps succeeds without our custom encoder, then the basic types are standard.
-    # However, because we use our custom encoder in production, we should just test that
-    # the payload values themselves are standard int/float/str.
-    for row in payload.get("overall_metrics", []):
-        for key, value in row.items():
-            assert not isinstance(value, type(None)) or value is None
-            # If it's a number, it should be int or float (Decimal is acceptable only if handled by encoder)
-            # The custom encoder handles it during dumps.
-            pass
+    from src.analytics.metrics import JSONEncoder
+    # If json.dumps succeeds without error, all types are handled
+    json.dumps(payload, cls=JSONEncoder)

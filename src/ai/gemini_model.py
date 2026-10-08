@@ -40,10 +40,15 @@ class GeminiAISummarizer(AISummarizer):
 
         from src.analytics.metrics import JSONEncoder
 
+        condensed = {
+            "overall": metrics.get("overall", {}),
+            "key_findings": metrics.get("key_findings", {})
+        }
+
         user_prompt = (
-            f"Here is the aggregated JSON data:\n"
-            f"{json.dumps(metrics, cls=JSONEncoder, indent=2)}\n\n"
-            f"Please provide the summary now."
+            f"Here are the precomputed findings:\n"
+            f"{json.dumps(condensed, cls=JSONEncoder, indent=2)}\n\n"
+            f"Summarize these findings now."
         )
 
         try:

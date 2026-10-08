@@ -40,10 +40,12 @@ def test_interface_contract():
 def test_mock_summarizer_deterministic():
     """Verify MockAISummarizer generates a deterministic summary without network."""
     payload = {
-        "overall_metrics": [{"total_appointments": 20000, "no_show_rate_pct": 14.5}],
-        "clinic_no_show_rates": [{"clinic_name": "Clinic A", "no_show_rate_pct": 20.0}],
-        "weekday_no_show_rates": [{"day_of_week": "Monday", "no_show_rate_pct": 18.0}],
-        "time_slot_no_show_rates": [{"time_slot": "Evening", "no_show_rate_pct": 19.0}]
+        "overall": {"total_appointments": 20000, "no_show_rate_pct": 14.5},
+        "key_findings": {
+            "highest_no_show_clinic": {"clinic_name": "Clinic A", "no_show_rate_pct": 20.0},
+            "highest_no_show_weekday": {"day_of_week": "Monday", "no_show_rate_pct": 18.0},
+            "highest_no_show_time_slot": {"time_slot": "Evening", "no_show_rate_pct": 19.0}
+        }
     }
     
     summarizer = MockAISummarizer()
@@ -51,7 +53,7 @@ def test_mock_summarizer_deterministic():
     result2 = summarizer.summarize(payload)
     
     assert result1 == result2
-    assert "14.5%" in result1
+    assert "14.50%" in result1
     assert "Clinic A" in result1
     assert "Monday" in result1
     assert "Evening" in result1
@@ -61,11 +63,13 @@ def test_mock_summarizer_deterministic():
 
 def test_ollama_fallback_unavailable(monkeypatch):
     """Verify Ollama throws RuntimeError when network is down instead of generic exception."""
-    # We can test this by forcing the host to an invalid endpoint
-    monkeypatch.setenv("OLLAMA_BASE_URL", "http://localhost:9999") # Assuming 9999 is dead
+    from src.config.settings import Settings, AISettings
+    
+    mock_settings = Settings(ai=AISettings(ollama_base_url="http://localhost:9999"))
+    monkeypatch.setattr("src.ai.ollama_model.settings", mock_settings)
     
     summarizer = OllamaAISummarizer()
-    payload = {"overall_metrics": [{"total_appointments": 100}]}
+    payload = {"overall": {"total_appointments": 100}}
     
     # It should raise RuntimeError, not crash with raw requests.ConnectionError
     with pytest.raises(RuntimeError, match="AI backend unavailable"):
@@ -110,7 +114,7 @@ def test_gemini_missing_key(monkeypatch):
     monkeypatch.setattr("src.ai.gemini_model.settings", mock_settings)
     
     summarizer = GeminiAISummarizer()
-    payload = {"overall_metrics": [{"total_appointments": 100}]}
+    payload = {"overall": {"total_appointments": 100}}
     
     with pytest.raises(RuntimeError, match="GEMINI_API_KEY is not set"):
         summarizer.summarize(payload)
@@ -123,7 +127,7 @@ def test_grok_missing_key(monkeypatch):
     monkeypatch.setattr("src.ai.grok_model.settings", mock_settings)
     
     summarizer = GrokAISummarizer()
-    payload = {"overall_metrics": [{"total_appointments": 100}]}
+    payload = {"overall": {"total_appointments": 100}}
     
     with pytest.raises(RuntimeError, match="XAI_API_KEY is not set"):
         summarizer.summarize(payload)

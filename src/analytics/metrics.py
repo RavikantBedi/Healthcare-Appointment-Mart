@@ -46,27 +46,36 @@ def generate_metrics_payload() -> Dict[str, Any]:
     engine = get_engine()
     min_sample = settings.analytics.clinic_min_sample
     
+    overall_data = _query_to_dict_list(engine, "SELECT * FROM analytics.vw_overall_metrics")
+    clinics_data = _query_to_dict_list(engine, f"SELECT * FROM analytics.vw_clinic_no_show_rate WHERE total_appointments >= {min_sample} LIMIT 5")
+    weekdays_data = _query_to_dict_list(engine, "SELECT * FROM analytics.vw_weekday_no_show_rate")
+    time_slots_data = _query_to_dict_list(engine, "SELECT * FROM analytics.vw_time_slot_no_show_rate")
+    appt_types_data = _query_to_dict_list(engine, "SELECT * FROM analytics.vw_appointment_type_no_show_rate")
+    monthly_data = _query_to_dict_list(engine, "SELECT * FROM analytics.vw_monthly_no_show_trend")
+
+    def get_max(items: List[Dict], key: str) -> Dict:
+        return max(items, key=lambda x: float(x[key])) if items else {}
+
+    def get_min(items: List[Dict], key: str) -> Dict:
+        return min(items, key=lambda x: float(x[key])) if items else {}
+
     payload = {
-        "overall_metrics": _query_to_dict_list(
-            engine, "SELECT * FROM analytics.vw_overall_metrics"
-        ),
-        "clinic_no_show_rates": _query_to_dict_list(
-            engine,
-            f"SELECT * FROM analytics.vw_clinic_no_show_rate "
-            f"WHERE total_appointments >= {min_sample} LIMIT 5"
-        ),
-        "weekday_no_show_rates": _query_to_dict_list(
-            engine, "SELECT * FROM analytics.vw_weekday_no_show_rate"
-        ),
-        "time_slot_no_show_rates": _query_to_dict_list(
-            engine, "SELECT * FROM analytics.vw_time_slot_no_show_rate"
-        ),
-        "appointment_type_no_show_rates": _query_to_dict_list(
-            engine, "SELECT * FROM analytics.vw_appointment_type_no_show_rate"
-        ),
-        "monthly_trend": _query_to_dict_list(
-            engine, "SELECT * FROM analytics.vw_monthly_no_show_trend"
-        )
+        "overall": overall_data[0] if overall_data else {},
+        "key_findings": {
+            "highest_no_show_clinic": get_max(clinics_data, "no_show_rate_pct"),
+            "highest_no_show_weekday": get_max(weekdays_data, "no_show_rate_pct"),
+            "highest_no_show_time_slot": get_max(time_slots_data, "no_show_rate_pct"),
+            "highest_no_show_appointment_type": get_max(appt_types_data, "no_show_rate_pct"),
+            "highest_no_show_month": get_max(monthly_data, "no_show_rate_pct"),
+            "lowest_no_show_month": get_min(monthly_data, "no_show_rate_pct")
+        },
+        "monthly_trend": monthly_data,
+        "detailed_data": {
+            "clinics": clinics_data,
+            "weekdays": weekdays_data,
+            "time_slots": time_slots_data,
+            "appointment_types": appt_types_data
+        }
     }
     
     # We aggressively assert that there is no patient_id or personal data anywhere in the payload

@@ -15,37 +15,45 @@ class MockAISummarizer(AISummarizer):
         validate_privacy(metrics)
         
         # 2. Extract key metrics safely
-        overall = metrics.get("overall_metrics", [{}])[0]
+        overall = metrics.get("overall", {})
         total = overall.get("total_appointments", 0)
         no_show_rate = overall.get("no_show_rate_pct", 0.0)
         
-        # Get worst clinic
-        clinics = metrics.get("clinic_no_show_rates", [])
-        worst_clinic = clinics[0] if clinics else {}
+        # Get key findings
+        findings = metrics.get("key_findings", {})
+        
+        worst_clinic = findings.get("highest_no_show_clinic", {}) or {}
         worst_clinic_name = worst_clinic.get("clinic_name", "Unknown")
         worst_clinic_rate = worst_clinic.get("no_show_rate_pct", 0.0)
         
-        # Get worst weekday
-        weekdays = metrics.get("weekday_no_show_rates", [])
-        sorted_weekdays = sorted(weekdays, key=lambda x: x.get("no_show_rate_pct", 0.0), reverse=True)
-        worst_day = sorted_weekdays[0].get("day_of_week", "Unknown") if sorted_weekdays else "Unknown"
+        worst_day_obj = findings.get("highest_no_show_weekday", {}) or {}
+        worst_day = worst_day_obj.get("day_of_week", "Unknown")
         
-        # Get worst time slot
-        time_slots = metrics.get("time_slot_no_show_rates", [])
-        sorted_slots = sorted(time_slots, key=lambda x: x.get("no_show_rate_pct", 0.0), reverse=True)
-        worst_slot = sorted_slots[0].get("time_slot", "Unknown") if sorted_slots else "Unknown"
+        worst_slot_obj = findings.get("highest_no_show_time_slot", {}) or {}
+        worst_slot = worst_slot_obj.get("time_slot", "Unknown")
+        
+        worst_month_obj = findings.get("highest_no_show_month", {}) or {}
+        worst_month_name = worst_month_obj.get("month_name", "Unknown")
+        worst_month_rate = worst_month_obj.get("no_show_rate_pct", 0.0)
+        if "year" in worst_month_obj and "month" in worst_month_obj:
+            worst_month_label = f"{worst_month_obj['year']}-{str(worst_month_obj['month']).zfill(2)} ({worst_month_name})"
+        elif "year" in worst_month_obj:
+            worst_month_label = f"{worst_month_obj['year']} {worst_month_name}"
+        else:
+            worst_month_label = worst_month_name
         
         # 3. Construct formatted deterministic summary
         summary = (
             "========================================\n"
             "AI NO-SHOW SUMMARY (MOCK BACKEND)\n"
             "========================================\n\n"
-            f"Overall no-show rate: {no_show_rate}%\n"
+            f"Overall no-show rate: {float(no_show_rate):.2f}%\n"
             f"Total appointments analyzed: {total}\n\n"
             "Key observed patterns:\n"
-            f"- {worst_clinic_name} has the highest observed rate at {worst_clinic_rate}%.\n"
+            f"- {worst_clinic_name} has the highest observed rate at {float(worst_clinic_rate):.2f}%.\n"
             f"- {worst_day} has the highest observed weekday rate.\n"
-            f"- {worst_slot} slots show a higher observed rate compared to others.\n\n"
+            f"- {worst_slot} slots show a higher observed rate compared to others.\n"
+            f"- {worst_month_label} had the highest monthly rate at {float(worst_month_rate):.2f}%.\n\n"
             "Operational observation:\n"
             "The data indicates concentrated no-show patterns in specific clinics and time slots. "
             "These observations may warrant targeted scheduling adjustments.\n\n"

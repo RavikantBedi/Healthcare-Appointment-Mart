@@ -27,18 +27,29 @@ class OllamaAISummarizer(AISummarizer):
         
         from src.analytics.metrics import JSONEncoder
         
+        # Build a condensed payload with ONLY what the LLM needs to summarize.
+        # This prevents the model from misinterpreting raw monthly arrays.
+        condensed = {
+            "overall": metrics.get("overall", {}),
+            "key_findings": metrics.get("key_findings", {})
+        }
+        
         prompt = (
             f"{SYSTEM_PROMPT}\n\n"
-            f"Here is the aggregated JSON data:\n"
-            f"{json.dumps(metrics, cls=JSONEncoder, indent=2)}\n\n"
-            f"Please provide the summary now."
+            f"Here are the precomputed findings:\n"
+            f"{json.dumps(condensed, cls=JSONEncoder, indent=2)}\n\n"
+            f"Summarize these findings now."
         )
         
         payload = {
             "model": model,
             "prompt": prompt,
             "stream": False,
-            "think": False
+            "think": False,
+            "options": {
+                "temperature": 0.0,
+                "num_predict": 300
+            }
         }
         
         try:

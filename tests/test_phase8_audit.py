@@ -27,12 +27,10 @@ from src.analytics.metrics import JSONEncoder
 def test_zero_denominator_mock_ai():
     """Verify MockAI handles a payload where all counts are zero without crashing."""
     payload = {
-        "overall_metrics": [{"total_appointments": 0, "no_show_rate_pct": 0.0, "no_shows": 0}],
-        "clinic_no_show_rates": [],
-        "weekday_no_show_rates": [],
-        "time_slot_no_show_rates": [],
-        "appointment_type_no_show_rates": [],
-        "monthly_trend": []
+        "overall": {"total_appointments": 0, "no_show_rate_pct": 0.0, "no_shows": 0},
+        "key_findings": {},
+        "monthly_trend": [],
+        "detailed_data": {}
     }
     summarizer = MockAISummarizer()
     result = summarizer.summarize(payload)
@@ -64,29 +62,63 @@ def test_privacy_rejects_nested_forbidden_field():
 
 
 # ==================================================
-# Section 8: AI Output Safety
+# Section 8: AI Output Safety & Faithfulness
 # ==================================================
 
 def test_mock_ai_output_references_only_supplied_data():
     """Verify mock AI output only references data from the supplied payload."""
     payload = {
-        "overall_metrics": [{"total_appointments": 500, "no_show_rate_pct": 12.5}],
-        "clinic_no_show_rates": [{"clinic_name": "TestClinic", "no_show_rate_pct": 25.0}],
-        "weekday_no_show_rates": [{"day_of_week": "Friday", "no_show_rate_pct": 15.0}],
-        "time_slot_no_show_rates": [{"time_slot": "Afternoon", "no_show_rate_pct": 18.0}]
+        "overall": {"total_appointments": 500, "no_show_rate_pct": 12.5},
+        "key_findings": {
+            "highest_no_show_clinic": {"clinic_name": "TestClinic", "no_show_rate_pct": 25.0},
+            "highest_no_show_weekday": {"day_of_week": "Friday", "no_show_rate_pct": 15.0},
+            "highest_no_show_time_slot": {"time_slot": "Afternoon", "no_show_rate_pct": 18.0},
+            "highest_no_show_month": {"month_name": "May", "year": 2024, "month": 5, "no_show_rate_pct": 24.30}
+        },
+        "detailed_data": {},
+        "monthly_trend": []
     }
     summarizer = MockAISummarizer()
     result = summarizer.summarize(payload)
 
     # Must reference supplied data
-    assert "12.5%" in result
+    assert "12.50%" in result
     assert "TestClinic" in result
     assert "Friday" in result
     assert "Afternoon" in result
+    assert "24.30%" in result
     
     # Must NOT hallucinate unsupported claims
     assert "because" not in result.lower()
     assert "cause" not in result.lower().replace("causation", "").replace("because", "")
+
+def test_ai_faithfulness_missing_months():
+    """Verify that the AI doesn't fabricate missing months."""
+    payload = {
+        "overall": {"no_show_rate_pct": 18.89},
+        "key_findings": {
+            "highest_no_show_month": {
+                "year": 2024,
+                "month_name": "May",
+                "no_show_rate_pct": 24.30
+            }
+        },
+        "monthly_trend": [
+            {"year": 2024, "month_name": "May", "no_show_rate_pct": 24.30}
+        ],
+        "detailed_data": {}
+    }
+    summarizer = MockAISummarizer()
+    result = summarizer.summarize(payload)
+    
+    assert "2024" in result
+    assert "May" in result
+    assert "24.30" in result
+    
+    # Should not invent another month
+    assert "June" not in result
+    assert "July" not in result
+    assert "August" not in result
 
 
 # ==================================================
@@ -101,7 +133,7 @@ def test_clinic_min_sample_filtering():
     from src.analytics.metrics import generate_metrics_payload
     payload = generate_metrics_payload()
 
-    clinics = payload.get("clinic_no_show_rates", [])
+    clinics = payload.get("detailed_data", {}).get("clinics", [])
     from src.config.settings import settings
     threshold = settings.analytics.clinic_min_sample
     
