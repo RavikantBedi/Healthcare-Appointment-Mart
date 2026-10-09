@@ -211,7 +211,7 @@ Follow these step-by-step instructions to run the project from a clean GitHub cl
 ### Step 1: Clone the Repository
 ```bash
 git clone https://github.com/RavikantBedi/Healthcare-Appointment-Mart-.git
-cd Healthcare-Appointment-Mart-
+cd Healthcare-Appointment-Mart
 ```
 
 ### Step 2: Set up Virtual Environment & Dependencies
