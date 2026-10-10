@@ -2,20 +2,24 @@
 
 ## 1. Project Overview
 
-This project models healthcare appointments using synthetic, non-sensitive data and analyzes no-show patterns using a layered data engineering architecture. It also generates a privacy-safe AI summary of precomputed operational metrics.
+This project takes synthetic healthcare appointment data — nothing real, nothing sensitive — and turns it into something you can actually learn from. It models patients, clinics, appointments and no-shows, runs everything through a layered ETL pipeline, and finishes with two outputs: operational metrics you can query with SQL, and a plain-English AI summary of where the no-show problems are. At no point does raw personal data reach the AI.
 
 ## 2. Problem Statement
 
-"Using synthetic, non-sensitive data, model patients, appointments, clinics and no-shows. Build operational metrics and an AI summary of no-show patterns without exposing raw personal fields."
+The assignment (DAI-019) asked for this:
+
+> "Using synthetic, non-sensitive data, model patients, appointments, clinics and no-shows. Build operational metrics and an AI summary of no-show patterns without exposing raw personal fields."
 
 ## 3. Key Objectives
 
-- **Healthcare data modeling**: Simulates a realistic healthcare appointment ecosystem.
-- **ETL**: Extracts, validates, stages, transforms, and loads data.
-- **Data validation**: Validates rules and data types early in the pipeline.
-- **Operational analytics**: Utilizes a Star Schema to compute high-value metrics.
-- **Privacy-safe AI summarization**: Safely injects deterministic metrics into an AI model for natural language summaries.
-- **Reproducible execution**: Ensures consistent, idempotent pipeline runs.
+What this project set out to do:
+
+- **Healthcare data modeling** — build a realistic (but fully synthetic) appointment ecosystem.
+- **ETL pipeline** — extract, validate, stage, transform and load the data.
+- **Early validation** — catch bad records at the door instead of deep inside the pipeline.
+- **Operational analytics** — use a Star Schema so the important metrics are fast and easy to query.
+- **Privacy-safe AI summaries** — hand the AI nothing but aggregated numbers, then let it write the summary.
+- **Reproducible runs** — same input, same output, every single time.
 
 ## 4. Architecture
 
@@ -57,21 +61,22 @@ flowchart TD
     K --> L[Natural Language Summary]
 ```
 
-(See `docs/architecture.md` for extended system design details).
+For the extended system design, see `docs/architecture.md`.
 
 ## 5. Technology Stack
 
-- Python
-- Pandas
-- PostgreSQL
-- SQLAlchemy / psycopg2
-- Faker
-- Pytest
-- Docker
-- Ollama (Optional)
-- Qwen3:1.7B (Optional)
-- Git/GitHub
-- Mermaid for architecture documentation
+A short list, and why each piece is here:
+
+- **Python** — the main language for the pipeline and data generation
+- **Pandas** — validation, transformations, metrics prep
+- **PostgreSQL** — where the data actually lives
+- **SQLAlchemy / psycopg2** — the glue between Python and PostgreSQL
+- **Faker** — generates the fake patients, clinics and appointments
+- **Pytest** — runs the test suite
+- **Docker** — gives you a local PostgreSQL with no manual install
+- **Ollama + Qwen3:1.7B** *(optional)* — a free, local AI backend
+- **Git / GitHub** — version control
+- **Mermaid** — draws the diagrams in these docs
 
 ## 6. Data Model
 
@@ -97,10 +102,10 @@ flowchart TD
 
 Extract → Validate → Stage → Transform → Load Core → Load Mart
 
-- **Data validation**: Validation is implemented using Pandas-based validation functions with explicit required-field, duplicate, foreign-key, status, and date rules.
-- **Rejected records**: Isolates invalid records during extraction so valid records can continue.
-- **Transformations**: Derives fields such as `no_show_flag` and `time_slot`.
-- **Privacy stripping**: Ensures protected direct personal fields do not flow into the analytics output layer.
+- **Validation** — Pandas-based rules check required fields, duplicates, foreign keys, status values and dates. Every problem found is written to a `validation_errors` column.
+- **Rejected records** — invalid rows are quarantined during extraction so the good rows can keep moving. One bad file never kills the whole run.
+- **Transformations** — derived fields like `no_show_flag`, `time_slot` and age buckets get calculated here.
+- **Privacy stripping** — direct personal identifiers are dropped before the analytics layer ever sees them.
 
 ## 8. Data Quality
 
@@ -127,6 +132,8 @@ SQL is the authoritative calculation layer for all metrics, including:
 
 ## 10. AI Architecture
 
+The key idea: **the AI never calculates anything.**
+
 **SQL/Python computes the authoritative metrics.**
 Python precomputes:
 - highest clinic
@@ -136,63 +143,73 @@ Python precomputes:
 - highest month
 - lowest month
 
-**The AI is NOT used to calculate or rank metrics.**
-AI is ONLY used to insert precomputed findings into a strict 4-section Markdown template (Executive Summary, Key Observed Patterns, Operational Observation, Limitation). The LLM is restricted to precomputed findings, and automated tests verify that the implemented summary path does not introduce unsupported values or cross-dimension relationships.
+The AI's only job is to drop those precomputed facts into a strict 4-section Markdown template:
+
+1. Executive Summary
+2. Key Observed Patterns
+3. Operational Observation
+4. Limitation
 
 **Architecture:**
 Metrics → key_findings → privacy validation → AISummarizer → Mock / Ollama → summary
 
 ## 11. AI Faithfulness / Hallucination Control
 
-Initially, the LLM received large detailed arrays and was asked to derive rankings, which caused incorrect numerical associations. 
-The final architecture moved ranking/calculation into deterministic SQL/Python logic.
+Honest note: the first version got this wrong. We sent the LLM large arrays and asked it to find the rankings, and it attached numbers to the wrong categories.
 
-The LLM now receives only:
+So we moved every ranking and calculation into deterministic SQL/Python. The LLM now receives only two things:
+
 - `overall`
 - `key_findings`
 
-The detailed monthly and category arrays remain in the analytics artifact but are NOT transmitted to the LLM. 
+The detailed monthly and category arrays stay in the analytics artifact — they are never sent to the model.
 
-Control measures:
+What keeps it honest:
+
 - `temperature=0`
 - limited output length
 - strict prompt forbidding calculation
 - no causal claims allowed
 - no invented values allowed
 
-The tested outputs were fully consistent with the supplied metrics.
+In testing, the summaries matched the numbers we gave them — nothing invented, nothing rearranged.
 
 ## 12. Privacy
 
-Raw synthetic input may include synthetic personal fields for demonstrating the privacy boundary. However:
-- Raw direct identifiers (e.g. `first_name`, `last_name`, `phone`, `email`, `address`) are stripped before the Core layer.
-- The Core and Mart models still contain analytical patient fields such as `patient_id`, `date_of_birth`, and `zip_code` to allow for relational integrity and demographic aggregations.
-- AI receives only aggregated metrics. Patient-level fields are never sent to the AI.
+The raw synthetic input does include fake personal fields — on purpose, so we can demonstrate that they actually get removed:
 
-Protected fields explicitly forbidden in the AI payload: `first_name`, `last_name`, `phone`, `email`, `address`, `date_of_birth`, `patient_id`.
-An active privacy validator strictly enforces this before API calls.
+- `first_name`, `last_name`, `phone`, `email`, `address` are stripped before the data reaches the Core layer.
+- Analytical fields like `patient_id`, `date_of_birth` and `zip_code` stay in the database for joins and demographic breakdowns, but they never go to the AI.
+- The AI sees aggregated metrics only — never patient-level rows.
+
+Before any API call goes out, a privacy validator scans the payload. These fields are explicitly forbidden: `first_name`, `last_name`, `phone`, `email`, `address`, `date_of_birth`, `patient_id`. If even one shows up, the validator raises an error and the call never happens.
 
 ## 13. Testing
 
-The project includes 48 tests covering ETL, validation, analytics, privacy, AI faithfulness, prompt integration, edge cases, and failure handling.
-- ETL
-- validation
-- analytics
-- privacy
-- AI interface
-- AI faithfulness
-- edge cases
-- failure handling
+The project ships with 48 tests, and they all pass. They cover:
 
-Run tests with:
-`pytest -v`
+- ETL transformations
+- Validation rules
+- Analytics / metrics structure
+- The privacy boundary
+- The AI interface contract
+- AI faithfulness (no invented numbers)
+- Prompt integration
+- Edge cases and failure handling
+
+Run them with:
+
+```bash
+pytest -v
+```
 
 ## 14. Failure / Edge Case Demonstration
 
-An intentional invalid fixture demonstrates edge cases.
+We keep a deliberately broken file: `tests/fixtures/invalid_appointments.csv`.
+
 Input → Validation → rejection/quarantine → valid records preserved
 
-Example error log entry will show rejected appointments while the successful records flow through.
+You will see the rejected appointments in the log with clear error messages while the healthy records keep moving through. Bad data gets handled; nothing crashes.
 
 ## 15. Idempotency / Reproducibility
 
@@ -202,7 +219,7 @@ This approach is simple and deterministic, making it suitable for this assessmen
 ## 16. Project Structure
 
 ```
-Healthcare-Appointment-Mart-/
+Healthcare-Appointment-Mart/
 ├── README.md                     # Problem, architecture, setup, and execution guide
 ├── requirements.txt              # Pinned Python dependencies
 ├── pytest.ini                    # Pytest configuration
@@ -250,39 +267,44 @@ Healthcare-Appointment-Mart-/
 
 ## 17. Assumptions
 
-The following assumptions were documented where the assignment left details open:
+Where the assignment left things open, we made these calls and wrote them down:
 
-- **Static, batch-loaded data**: The dataset is generated once and reloaded in full on every run (truncate-and-reload). Incremental/CDC loading is out of scope and is documented as a production improvement.
-- **Controlled appointment statuses**: `status` is limited to `Scheduled`, `Completed`, `Cancelled`, or `No-Show`; `no_show_flag` is derived directly from `No-Show`.
-- **Fixed fact grain**: One row in `fact_appointment` represents exactly one scheduled appointment.
-- **Deterministic synthetic data**: Generation is seeded (`DATA_SEED=42`), so re-runs produce identical outputs for reproducibility.
-- **Local tooling available**: Reviewers have Git, Python 3.10+, and Docker Desktop (for PostgreSQL). The default `AI_BACKEND=mock` requires no network access or API keys; Ollama and Gemini are optional backends.
-- **No real PHI**: All data is synthetic. The privacy pipeline demonstrates defensive design; it is not a certified HIPAA/GDPR control.
+- **Static, batch-loaded data** — the dataset is generated once and reloaded in full on every run. Incremental/CDC loading is out of scope here; it is listed as a production improvement in section 22.
+- **Controlled appointment statuses** — `status` is one of `Scheduled`, `Completed`, `Cancelled` or `No-Show`, and `no_show_flag` is derived straight from `No-Show`.
+- **Fixed fact grain** — one row in `fact_appointment` is exactly one scheduled appointment.
+- **Deterministic data generation** — generation is seeded (`DATA_SEED=42`), so every re-run produces the same dataset.
+- **Local tooling available** — you need Git, Python 3.10+ and Docker Desktop for PostgreSQL. The default `AI_BACKEND=mock` needs no network and no API keys; Ollama and Gemini are optional extras.
+- **No real PHI** — all data is synthetic. The privacy pipeline demonstrates defensive design; it is not a certified HIPAA/GDPR control.
 
 ## 18. Complete Setup & Execution Guide
 
-Follow these step-by-step instructions to run the project from a clean GitHub clone.
+Follow these steps and you will go from a fresh clone to a full pipeline run.
 
 ### Prerequisites:
+
 - **Git**
-- **Docker Desktop** (must be running for PostgreSQL)
+- **Docker Desktop** (must be running — it provides PostgreSQL)
 - **Python 3.10+**
 
 ### Step 1: Clone the Repository
+
 ```bash
 git clone https://github.com/RavikantBedi/Healthcare-Appointment-Mart.git
 cd Healthcare-Appointment-Mart
 ```
 
 ### Step 2: Set up Virtual Environment & Dependencies
-For Windows (PowerShell):
+
+Windows (PowerShell):
+
 ```powershell
 python -m venv venv
 .\venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 ```
 
-For Mac/Linux:
+Mac/Linux:
+
 ```bash
 python3 -m venv venv
 source venv/bin/activate
@@ -290,47 +312,54 @@ pip install -r requirements.txt
 ```
 
 ### Step 3: Configure Environment Variables
-Copy the example environment file to create your active `.env` file.
+
+Copy the template to create your real `.env` file:
+
 ```bash
 cp .env.example .env
 ```
-*(No changes to `.env` are required for the default Mock run).*
+
+You don't need to change anything in `.env` for the default mock run.
 
 ### Step 4: Start the PostgreSQL Database
-Ensure Docker Desktop is open, then run:
+
+Open Docker Desktop first, then run:
+
 ```bash
 docker compose up -d
 ```
-*Wait a few seconds for the database container to initialize.*
+
+Give the container a few seconds to initialize.
 
 ### Step 5: Generate Synthetic Data
-The full 20,000-row runtime dataset is NOT committed to Git. A small, clearly synthetic sample dataset is available in `data/sample/` for reference. The `data/raw/` folder will hold the generated runtime data (ignored by Git).
 
-Run the data generator to create the raw synthetic CSVs inside `data/raw/`.
-> **Important:** Always run Python scripts from the **project root** using `-m` (module mode) — this ensures the `src` package is resolved correctly.
+The full 20,000-row dataset is not committed to Git — you generate it yourself. A small sample dataset sits in `data/sample/` if you just want to see the shape of the data. Your generated files go into `data/raw/` (Git ignores that folder).
 
 ```bash
 python -m src.data_generation.generate_data
 ```
 
+> **Important:** always run Python scripts from the project root using `-m` (module mode). That is what makes the `src` package resolve correctly.
+
 ### Step 6: Run the ETL Pipeline & AI Summary
+
 To run the full end-to-end pipeline (Extract → Validate → Staging → Core → Mart → Analytics → Mock AI):
 
-**Windows (PowerShell):**
+Windows (PowerShell):
+
 ```powershell
 $env:AI_BACKEND="mock"
 python -m src.etl.pipeline
 ```
 
-**Mac/Linux:**
+Mac/Linux:
+
 ```bash
 AI_BACKEND=mock python -m src.etl.pipeline
 ```
 
----
+**Optional — run with real local AI.** If you have Ollama installed and the `qwen3:1.7b` model pulled, use this instead:
 
-*(Optional)* **Local Ollama Execution**
-If you have Ollama installed locally with the `qwen3:1.7b` model pulled, you can run the pipeline with the real AI backend:
 ```powershell
 # Windows
 $env:AI_BACKEND="ollama"
@@ -340,25 +369,30 @@ python -m src.etl.pipeline
 
 ## 19. Expected Output
 
+When everything works, you should see:
+
 - Row counts reconciled successfully (20,000 appointments)
 - Metrics payload generated successfully. Privacy boundary verified.
 - 4-Section AI NO-SHOW SUMMARY (Executive Summary, Key Observed Patterns, Operational Observation, Limitation)
 
 ## 20. Configuration
 
-Configuration uses `python-dotenv`, `os.getenv`, and standard Python `dataclasses`.
+Config is loaded with `python-dotenv` and `os.getenv`, then passed around as standard Python `dataclasses`.
+
 - `.env.example` acts as a template.
 - `.env` is ignored by Git.
 - No secrets are committed to the repository.
 
 ## 21. Limitations
 
-- Data is synthetic.
-- Deterministic dataset.
-- Observed associations do not establish causes.
-- Truncate-and-reload strategy.
-- Local LLM output quality depends on the model capabilities.
-- The project is an assessment-sized data platform, not a clinical production system.
+Keeping this honest on purpose:
+
+- The data is synthetic — it looks real, but it is not.
+- It is a fixed dataset, so every re-run produces identical results.
+- Patterns in the data are associations, not causes — a high no-show rate on Mondays does not prove Mondays cause no-shows.
+- The pipeline reloads everything each run (no incremental loading).
+- Local LLM output quality depends on the model you run.
+- This is an assessment-sized platform, not a clinical production system.
 
 ## 22. Future Improvements (Target Production Architecture)
 
