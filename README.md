@@ -199,7 +199,67 @@ Example error log entry will show rejected appointments while the successful rec
 The current pipeline uses truncate-and-reload for deterministic reproducibility.
 This approach is simple and deterministic, making it suitable for this assessment, but is not intended as a full incremental production ingestion strategy.
 
-## 16. Complete Setup & Execution Guide
+## 16. Project Structure
+
+```
+Healthcare-Appointment-Mart-/
+├── README.md                     # Problem, architecture, setup, and execution guide
+├── requirements.txt              # Pinned Python dependencies
+├── pytest.ini                    # Pytest configuration
+├── Dockerfile                    # PostgreSQL container image
+├── docker-compose.yml            # Local PostgreSQL service
+├── .env.example                  # Environment variable template (no secrets committed)
+├── .gitignore                    # Ignores .env, venv/, and generated data
+│
+├── data/
+│   ├── sample/                   # Committed synthetic sample CSVs (reference for reviewers)
+│   ├── raw/                      # Generated runtime CSVs (git-ignored)
+│   ├── processed/                # metrics_payload.json, analytics_report.md (git-ignored)
+│   └── rejected/                 # Quarantined invalid records (git-ignored)
+│
+├── docs/
+│   ├── architecture.md           # Extended system architecture
+│   ├── design_decision.md        # 1-page design/decision note
+│   ├── assessment_compliance.md  # Requirement-to-evidence matrix
+│   ├── demo_script.md            # 5–8 minute demo video script
+│   └── demo_checklist.md         # Pre-submission checklist
+│
+├── scripts/
+│   └── init_db.sh                # Database initialization helper
+│
+├── sql/
+│   ├── 00_schemas.sql            # Schema creation
+│   ├── 01_staging/               # Staging table DDL
+│   ├── 02_core/                  # Normalized 3NF core DDL
+│   ├── 03_mart/                  # Star schema dims/fact + date population
+│   └── 04_analytics/             # Metric views (authoritative calculation layer)
+│
+├── src/
+│   ├── ai/                       # AISummarizer interface, factory, mock/Ollama/Gemini backends,
+│   │                             # privacy validator, prompts
+│   ├── analytics/                # Metrics aggregation and report builder
+│   ├── config/                   # Env-driven settings and logging
+│   ├── data_generation/          # Synthetic data generator (Faker)
+│   ├── etl/                      # extract -> validate -> transform -> load -> pipeline
+│   └── validation/               # Pandas validation rules (quarantine logic)
+│
+└── tests/
+    ├── fixtures/                 # invalid_appointments.csv (failure/edge-case demo)
+    └── test_*.py                 # 48 tests: ETL, validation, analytics, privacy, AI faithfulness
+```
+
+## 17. Assumptions
+
+The following assumptions were documented where the assignment left details open:
+
+- **Static, batch-loaded data**: The dataset is generated once and reloaded in full on every run (truncate-and-reload). Incremental/CDC loading is out of scope and is documented as a production improvement.
+- **Controlled appointment statuses**: `status` is limited to `Scheduled`, `Completed`, `Cancelled`, or `No-Show`; `no_show_flag` is derived directly from `No-Show`.
+- **Fixed fact grain**: One row in `fact_appointment` represents exactly one scheduled appointment.
+- **Deterministic synthetic data**: Generation is seeded (`DATA_SEED=42`), so re-runs produce identical outputs for reproducibility.
+- **Local tooling available**: Reviewers have Git, Python 3.10+, and Docker Desktop (for PostgreSQL). The default `AI_BACKEND=mock` requires no network access or API keys; Ollama and Gemini are optional backends.
+- **No real PHI**: All data is synthetic. The privacy pipeline demonstrates defensive design; it is not a certified HIPAA/GDPR control.
+
+## 18. Complete Setup & Execution Guide
 
 Follow these step-by-step instructions to run the project from a clean GitHub clone.
 
@@ -278,20 +338,20 @@ $env:OLLAMA_MODEL="qwen3:1.7b"
 python -m src.etl.pipeline
 ```
 
-## 17. Expected Output
+## 19. Expected Output
 
 - Row counts reconciled successfully (20,000 appointments)
 - Metrics payload generated successfully. Privacy boundary verified.
 - 4-Section AI NO-SHOW SUMMARY (Executive Summary, Key Observed Patterns, Operational Observation, Limitation)
 
-## 18. Configuration
+## 20. Configuration
 
 Configuration uses `python-dotenv`, `os.getenv`, and standard Python `dataclasses`.
 - `.env.example` acts as a template.
 - `.env` is ignored by Git.
 - No secrets are committed to the repository.
 
-## 19. Limitations
+## 21. Limitations
 
 - Data is synthetic.
 - Deterministic dataset.
@@ -300,7 +360,7 @@ Configuration uses `python-dotenv`, `os.getenv`, and standard Python `dataclasse
 - Local LLM output quality depends on the model capabilities.
 - The project is an assessment-sized data platform, not a clinical production system.
 
-## 20. Future Improvements (Target Production Architecture)
+## 22. Future Improvements (Target Production Architecture)
 
 For migrating this assessment-scale pipeline to an enterprise production environment, the following architectural enhancements would be recommended:
 
