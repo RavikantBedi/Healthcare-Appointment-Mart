@@ -534,6 +534,80 @@ When everything works, you should see:
 - Metrics payload generated successfully. Privacy boundary verified.
 - 4-Section AI NO-SHOW SUMMARY (Executive Summary, Key Observed Patterns, Operational Observation, Limitation)
 
+### Show working: actual run transcript
+
+Verbatim console output from a complete end-to-end run (fresh database, `AI_BACKEND=mock`, Windows PowerShell):
+
+```text
+2026-10-12 23:27:17 | INFO     | __main__                       | ==================================================
+2026-10-12 23:27:17 | INFO     | __main__                       | STARTING PIPELINE RUN
+2026-10-12 23:27:17 | INFO     | __main__                       | ==================================================
+2026-10-12 23:27:17 | INFO     | src.etl.extract                | Starting data extraction from raw files.
+2026-10-12 23:27:17 | INFO     | src.etl.extract                | Extracting patients.csv...
+2026-10-12 23:27:17 | INFO     | src.etl.extract                | Extracted 5000 records from patients.csv.
+2026-10-12 23:27:17 | INFO     | src.etl.extract                | Extracting clinics.csv...
+2026-10-12 23:27:17 | INFO     | src.etl.extract                | Extracted 15 records from clinics.csv.
+2026-10-12 23:27:17 | INFO     | src.etl.extract                | Extracting appointment_types.csv...
+2026-10-12 23:27:17 | INFO     | src.etl.extract                | Extracted 6 records from appointment_types.csv.
+2026-10-12 23:27:17 | INFO     | src.etl.extract                | Extracting appointments.csv...
+2026-10-12 23:27:17 | INFO     | src.etl.extract                | Extracted 20000 records from appointments.csv.
+2026-10-12 23:27:17 | INFO     | src.validation.validators      | Patients validation: 5000 valid, 0 rejected.
+2026-10-12 23:27:17 | INFO     | src.validation.validators      | Clinics validation: 15 valid, 0 rejected.
+2026-10-12 23:27:17 | INFO     | src.validation.validators      | Appointment Types validation: 6 valid, 0 rejected.
+2026-10-12 23:27:17 | INFO     | src.validation.validators      | Appointments validation: 20000 valid, 0 rejected.
+2026-10-12 23:27:17 | INFO     | src.etl.load                   | Clearing database tables for idempotent reload...
+2026-10-12 23:27:17 | INFO     | src.etl.load                   | Database successfully cleared.
+2026-10-12 23:27:17 | INFO     | src.etl.load                   | Loading Staging layer...
+2026-10-12 23:27:19 | INFO     | src.etl.load                   | Staging load complete.
+2026-10-12 23:27:19 | INFO     | src.etl.transform              | Transforming patients...
+2026-10-12 23:27:19 | INFO     | src.etl.transform              | Transforming clinics...
+2026-10-12 23:27:19 | INFO     | src.etl.transform              | Transforming appointment types...
+2026-10-12 23:27:19 | INFO     | src.etl.transform              | Transforming appointments...
+2026-10-12 23:27:19 | INFO     | src.etl.load                   | Loading Core layer...
+2026-10-12 23:27:22 | INFO     | src.etl.load                   | Core load complete.
+2026-10-12 23:27:22 | INFO     | src.etl.load                   | Loading Mart layer (Star Schema)...
+2026-10-12 23:27:23 | INFO     | src.etl.load                   | Mart load complete.
+2026-10-12 23:27:23 | INFO     | __main__                       | ==================================================
+2026-10-12 23:27:23 | INFO     | __main__                       | PIPELINE RECONCILIATION SUMMARY
+2026-10-12 23:27:23 | INFO     | __main__                       | ==================================================
+2026-10-12 23:27:23 | INFO     | __main__                       | Raw Extracted Appointments: 20000
+2026-10-12 23:27:23 | INFO     | __main__                       | Validated Appointments:     20000
+2026-10-12 23:27:23 | INFO     | __main__                       | Staging Appointments:       20000
+2026-10-12 23:27:23 | INFO     | __main__                       | Core Appointments:          20000
+2026-10-12 23:27:23 | INFO     | __main__                       | Mart Fact Appointments:     20000
+2026-10-12 23:27:23 | INFO     | __main__                       | Row counts reconciled successfully.
+2026-10-12 23:27:23 | INFO     | src.analytics.metrics          | Generating Analytics Metrics payload...
+2026-10-12 23:27:23 | INFO     | src.analytics.metrics          | Metrics payload generated successfully. Privacy boundary verified.
+2026-10-12 23:27:23 | INFO     | src.analytics.metrics          | Saved metrics payload to data/processed/metrics_payload.json
+2026-10-12 23:27:23 | INFO     | __main__                       | Saved deterministic analytics report to data/processed/analytics_report.md
+
+2026-10-12 23:27:23 | INFO     | src.ai.factory                 | Initializing Mock AI backend.
+
+========================================
+AI NO-SHOW SUMMARY (MOCK BACKEND)
+========================================
+
+Overall no-show rate: 18.89%
+Total appointments analyzed: 20000
+
+Key observed patterns:
+- North Caitlinburgh Primary Care Center has the highest observed rate at 26.06%.
+- Sunday has the highest observed weekday rate.
+- Early Morning slots show a higher observed rate compared to others.
+- 2024-09 (September) had the highest monthly rate at 24.30%.
+
+Operational observation:
+The data indicates concentrated no-show patterns in specific clinics and time slots. These observations may warrant targeted scheduling adjustments.
+
+Limitations:
+This summary is based on synthetic data. Observed associations do not establish causation.
+========================================
+
+2026-10-12 23:27:23 | INFO     | __main__                       | Pipeline completed successfully.
+```
+
+> Output is deterministic: data generation is seeded (`DATA_SEED=42`), so every run reproduces the same counts, metrics and summary — only the timestamps differ.
+
 ## 20. Configuration
 
 Config is loaded with `python-dotenv` and `os.getenv`, then passed around as standard Python `dataclasses`.
