@@ -1,0 +1,43 @@
+%% Staging schema (staging.*) - verified against sql/01_staging/create_staging_tables.sql
+%% All columns VARCHAR: raw landing copy. PKs only, NO physical foreign keys.
+%% Personal fields exist HERE ONLY; they are stripped before core.
+erDiagram
+    stg_patients {
+        varchar patient_id PK
+        varchar first_name
+        varchar last_name
+        varchar gender
+        varchar date_of_birth
+        varchar phone
+        varchar email
+        varchar address
+        varchar zip_code
+        varchar created_at
+    }
+    stg_clinics {
+        varchar clinic_id PK
+        varchar clinic_name
+        varchar clinic_type
+        varchar city
+        varchar state
+        varchar zip_code
+        varchar created_at
+    }
+    stg_appointment_types {
+        varchar appointment_type_id PK
+        varchar type_name
+        varchar description
+    }
+    stg_appointments {
+        varchar appointment_id PK
+        varchar patient_id
+        varchar clinic_id
+        varchar appointment_type_id
+        varchar appointment_date
+        varchar appointment_time
+        varchar status
+        varchar created_at
+    }
+    stg_appointments }|--|| stg_patients : "logical patient_id"
+    stg_appointments }|--|| stg_clinics : "logical clinic_id"
+    stg_appointments }|--|| stg_appointment_types : "logical appointment_type_id"

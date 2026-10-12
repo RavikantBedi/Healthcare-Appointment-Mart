@@ -1,0 +1,26 @@
+%% End-to-end data flow - verified against src/etl/pipeline.py, src/etl/extract.py,
+%% src/etl/transform.py, src/etl/load.py and sql/ DDL.
+%% Staging keeps PII; transform strips it (privacy boundary); mart + views are aggregate-safe.
+flowchart LR
+    subgraph SRC["Source (data/raw/)"]
+        CSV1[(patients.csv)]
+        CSV2[(clinics.csv)]
+        CSV3[(appointment_types.csv)]
+        CSV4[(appointments.csv)]
+    end
+
+    EX["Extract<br/>src/etl/extract.py"] --> VAL["Validate<br/>src/validation/validators.py"]
+    VAL -->|Rejected rows| REJ[("data/rejected/<br/>quarantine CSV")]
+    VAL -->|Valid rows| STG[("<b>staging</b> schema<br/>stg_* - all VARCHAR<br/>PII present")]
+    TR["Transform<br/>src/etl/transform.py<br/>privacy strip + derivations"] --> CORE[("<b>core</b> schema<br/>3NF - typed - FK<br/>PII stripped")]
+    STG --> TR
+    CORE --> MART[("<b>mart</b> schema<br/>fact_appointment + dims<br/>surrogate keys")]
+    MART --> VIEWS[("<b>analytics</b> schema<br/>6 aggregate-only views")]
+    VIEWS --> MET["Metrics payload<br/>src/analytics/metrics.py"]
+    MET --> RPT[("data/processed/<br/>analytics_report.md")]
+    MET --> PRIV{"Privacy validator<br/>src/ai/privacy.py"}
+    PRIV -->|Allowed| AI["AISummarizer<br/>mock / Ollama / Gemini"]
+    PRIV -->|Blocked fields| DENY["ValueError<br/>call never sent"]
+    AI --> SUM["Natural-language<br/>no-show summary"]
+
+    CSV1 & CSV2 & CSV3 & CSV4 --> EX

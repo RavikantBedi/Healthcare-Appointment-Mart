@@ -1,0 +1,41 @@
+%% Core schema (core.*) - verified against sql/02_core/create_core_tables.sql
+%% 3NF with PHYSICAL foreign key constraints (fk_appointments_patient/clinic/type).
+%% No personal fields (first_name, last_name, phone, email, address).
+erDiagram
+    patients {
+        uuid patient_id PK
+        varchar gender
+        date date_of_birth
+        varchar age_group
+        varchar zip_code
+        timestamp created_at
+    }
+    clinics {
+        uuid clinic_id PK
+        varchar clinic_name UK
+        varchar clinic_type
+        varchar city
+        varchar state
+        varchar zip_code
+        timestamp created_at
+    }
+    appointment_types {
+        int appointment_type_id PK
+        varchar type_name UK
+        varchar description
+    }
+    appointments {
+        uuid appointment_id PK
+        uuid patient_id FK
+        uuid clinic_id FK
+        int appointment_type_id FK
+        date appointment_date
+        time appointment_time
+        varchar status
+        bool no_show_flag
+        timestamp created_at
+        timestamp updated_at
+    }
+    appointments }|--|| patients : "fk_appointments_patient"
+    appointments }|--|| clinics : "fk_appointments_clinic"
+    appointments }|--|| appointment_types : "fk_appointments_type"

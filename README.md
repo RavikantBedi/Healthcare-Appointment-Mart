@@ -63,6 +63,10 @@ flowchart TD
 
 For the extended system design, see `docs/architecture.md`.
 
+The same flow, drawn with the database layers and privacy boundary spelled out (source: `docs/diagrams/data-flow-architecture.mmd`):
+
+![Data Flow Architecture](docs/diagrams/data-flow-architecture.png)
+
 ## 5. Technology Stack
 
 A short list, and why each piece is here:
@@ -80,18 +84,45 @@ A short list, and why each piece is here:
 
 ## 6. Data Model
 
-### Core model
-- `patients`
-- `clinics`
-- `appointment_types`
-- `appointments`
+PostgreSQL hosts four schemas — `staging`, `core`, `mart`, `analytics` — created by `sql/00_schemas.sql`. Data only moves forward between layers. All names below are transcribed from the DDL in `sql/` and verified against the live database.
 
-### Analytical model
-- `fact_appointment`
-- `dim_patient`
-- `dim_clinic`
-- `dim_date`
-- `dim_appointment_type`
+### 6.1 Staging Schema (raw landing)
+
+`staging.stg_patients`, `staging.stg_clinics`, `staging.stg_appointment_types`, `staging.stg_appointments` — defined in `sql/01_staging/create_staging_tables.sql`.
+
+- Every column is `VARCHAR` (raw data is accepted as-is).
+- Primary keys only — **no foreign keys or CHECK constraints** at this layer; validation happens in Python before promotion to core.
+- The synthetic personal fields (`first_name`, `last_name`, `phone`, `email`, `address`) exist **only here** and are stripped before core.
+
+![Staging Schema](docs/diagrams/staging-schema.png)
+
+> The relationships drawn in the staging diagram are **logical** (ID columns line up), not physical database constraints.
+
+### 6.2 Core Schema (3NF)
+
+`core.patients`, `core.clinics`, `core.appointment_types`, `core.appointments` — defined in `sql/02_core/create_core_tables.sql`.
+
+- Properly typed columns (`UUID`, `DATE`, `TIME`, `BOOLEAN`, `TIMESTAMP`) with full constraints.
+- Three **physical foreign keys** on `core.appointments` (verified via `pg_constraint`):
+  - `fk_appointments_patient` → `core.patients(patient_id)`
+  - `fk_appointments_clinic` → `core.clinics(clinic_id)`
+  - `fk_appointments_type` → `core.appointment_types(appointment_type_id)`
+- CHECK constraints enforce the controlled `status` domain (`Scheduled`, `Completed`, `Cancelled`, `No-Show`) and a sane appointment-date range.
+- No personal fields — privacy by design.
+
+![Core Schema](docs/diagrams/core-schema.png)
+
+### 6.3 Analytical Star Schema (Mart)
+
+`mart.fact_appointment` (grain: one row per scheduled appointment) plus four dimensions — `mart.dim_patient`, `mart.dim_clinic`, `mart.dim_date`, `mart.dim_appointment_type` — defined in `sql/03_mart/`.
+
+- Surrogate keys (`SERIAL`; `date_key` as a `YYYYMMDD` integer) decouple the mart from source-system IDs; natural keys are kept for traceability.
+- Four **physical foreign keys** from the fact to each dimension (verified via `pg_constraint`): `fk_fact_patient`, `fk_fact_clinic`, `fk_fact_date`, `fk_fact_appointment_type`.
+- Additive 0/1 measures (`is_no_show`, `is_completed`, `is_cancelled`) let analytics use `SUM()` directly.
+- Derived fields `time_slot` and the age-group buckets are calculated in the transform step (`src/etl/transform.py`).
+- No personal fields.
+
+![Analytics Star Schema](docs/diagrams/analytics-star-schema.png)
 
 **Fact grain**: "One row represents one scheduled appointment."
 
@@ -119,7 +150,7 @@ Major validation rules enforced:
 
 The failure demonstration handles invalid records gracefully without crashing the entire pipeline.
 
-## 9. Operational Metrics
+## 9. Operational Metrics & Analytical Views
 
 SQL is the authoritative calculation layer for all metrics, including:
 - Total appointments
@@ -129,6 +160,127 @@ SQL is the authoritative calculation layer for all metrics, including:
 - No-show rate
 - Clinic-level, weekday-level, time-slot-level, and appointment-type-level distributions
 - Monthly trends
+
+### Analytical Views
+
+Six reusable views over the mart star schema (`sql/04_analytics/create_views.sql`) power the metrics payload and the AI layer. Every view returns **aggregated data only** — no patient-level rows, no personal fields.
+
+![Analytical Views](docs/diagrams/analytics-views.png)
+
+Views have no foreign keys of their own; the joins back to the mart tables are **logical** and defined inside each view:
+
+| View | Joins (logical) | Business purpose |
+| :--- | :--- | :--- |
+| `analytics.vw_overall_metrics` | `mart.fact_appointment` | Headline appointment counts, status breakdown, and overall no-show rate. |
+| `analytics.vw_monthly_no_show_trend` | `+ mart.dim_date` | Month-over-month no-show trend for seasonality checks. |
+| `analytics.vw_clinic_no_show_rate` | `+ mart.dim_clinic` | Which clinics struggle most with no-shows. |
+| `analytics.vw_appointment_type_no_show_rate` | `+ mart.dim_appointment_type` | Which service lines lose the most appointments. |
+| `analytics.vw_time_slot_no_show_rate` | (fact only, `time_slot` column) | Which parts of the day are riskiest. |
+| `analytics.vw_weekday_no_show_rate` | `+ mart.dim_date` | Day-of-week patterns for staffing decisions. |
+
+All six views share the same no-show-rate formula, computed in SQL:
+
+```sql
+ROUND(100.0 * SUM(is_no_show) / NULLIF(COUNT(*), 0), 2) AS no_show_rate_pct
+```
+
+`NULLIF` guards the divide-by-zero case; `is_no_show` is the additive 0/1 measure on `mart.fact_appointment`, derived from `status = 'No-Show'` in the transform step.
+
+### Example Queries
+
+Each example below was run against the live database after a full pipeline run (20,000 appointments) — outputs are real, not illustrative.
+
+**1. Overall metrics** — one row of headline numbers:
+
+```sql
+SELECT * FROM analytics.vw_overall_metrics;
+```
+
+```
+ total_appointments | completed | cancelled | no_shows | still_scheduled | no_show_rate_pct
+--------------------+-----------+-----------+----------+-----------------+------------------
+              20000 |     13334 |      1915 |     3777 |             974 |            18.89
+```
+
+**2. Top clinics by no-show rate** — clinics ranked worst-first:
+
+```sql
+SELECT clinic_name, clinic_type, city, total_appointments, no_shows, no_show_rate_pct
+FROM analytics.vw_clinic_no_show_rate
+LIMIT 3;
+```
+
+```
+              clinic_name               | clinic_type  |     city     | total_appointments | no_shows | no_show_rate_pct
+----------------------------------------+--------------+--------------+--------------------+----------+------------------
+ North Caitlinburgh Primary Care Center | Specialty    | South Jay    |               1316 |      343 |            26.06
+ West Erinhaven Urgent Care Center      | Primary Care | Petersonside |               1374 |      355 |            25.84
+ New Jessicaview Urgent Care Center     | Primary Care | Rebeccastad  |               1272 |      315 |            24.76
+```
+
+**3. Weekday pattern** — feeds the "highest weekday" key finding:
+
+```sql
+SELECT day_of_week, day_of_week_num, total_appointments, no_shows, no_show_rate_pct
+FROM analytics.vw_weekday_no_show_rate
+ORDER BY day_of_week_num
+LIMIT 3;
+```
+
+```
+ day_of_week | day_of_week_num | total_appointments | no_shows | no_show_rate_pct
+-------------+-----------------+--------------------+----------+------------------
+ Monday      |               1 |               2785 |      572 |            20.54
+ Tuesday     |               2 |               2843 |      425 |            14.95
+ Wednesday   |               3 |               2870 |      485 |            16.90
+```
+
+**4. Monthly trend** — feeds the seasonality section of the AI summary:
+
+```sql
+SELECT year, month, month_name, total_appointments, no_shows, no_show_rate_pct
+FROM analytics.vw_monthly_no_show_trend
+ORDER BY year, month
+LIMIT 3;
+```
+
+```
+ year | month | month_name | total_appointments | no_shows | no_show_rate_pct
+------+-------+------------+--------------------+----------+------------------
+ 2023 |     1 | January    |                412 |       83 |            20.15
+ 2023 |     2 | February   |                414 |       81 |            19.57
+ 2023 |     3 | March      |                400 |       89 |            22.25
+```
+
+**5. Appointment type and time slot** — service-line and daypart risk:
+
+```sql
+SELECT type_name, total_appointments, no_shows, no_show_rate_pct
+FROM analytics.vw_appointment_type_no_show_rate
+LIMIT 3;
+
+SELECT time_slot, total_appointments, no_shows, no_show_rate_pct
+FROM analytics.vw_time_slot_no_show_rate
+LIMIT 3;
+```
+
+```
+    type_name     | total_appointments | no_shows | no_show_rate_pct
+------------------+--------------------+----------+------------------
+ Physical Therapy |               3322 |      930 |            28.00
+ Lab Test         |               3314 |      735 |            22.18
+ Vaccination      |               3324 |      656 |            19.74
+
+   time_slot   | total_appointments | no_shows | no_show_rate_pct
+---------------+--------------------+----------+------------------
+ Early Morning |               3988 |      867 |            21.74
+ Evening       |               2001 |      421 |            21.04
+ Mid Afternoon |               3985 |      777 |            19.50
+```
+
+`src/analytics/metrics.py` consumes these views, precomputes the deterministic rankings (highest/lowest clinic, weekday, time slot, type, month), and packages everything into `data/processed/metrics_payload.json`. The clinic query in `src/analytics/metrics.py` applies a minimum-sample filter (`WHERE total_appointments >=` the configured threshold) before ranking, so tiny clinics cannot dominate the "worst clinic" finding.
+
+> These numbers come from the fixed synthetic dataset (`DATA_SEED=42`). They describe the sample, not real healthcare operations.
 
 ## 10. AI Architecture
 
@@ -239,7 +391,14 @@ Healthcare-Appointment-Mart/
 │   ├── design_decision.md        # 1-page design/decision note
 │   ├── assessment_compliance.md  # Requirement-to-evidence matrix
 │   ├── demo_script.md            # 5–8 minute demo video script
-│   └── demo_checklist.md         # Pre-submission checklist
+│   ├── demo_checklist.md         # Pre-submission checklist
+│   └── diagrams/                 # ER / flow diagrams (Mermaid sources + PNGs)
+│       ├── README.md             # Diagram accuracy notes and re-render guide
+│       ├── staging-schema.mmd / .png
+│       ├── core-schema.mmd / .png
+│       ├── analytics-star-schema.mmd / .png
+│       ├── analytics-views.mmd / .png
+│       └── data-flow-architecture.mmd / .png
 │
 ├── scripts/
 │   └── init_db.sh                # Database initialization helper

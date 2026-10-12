@@ -1,0 +1,48 @@
+%% Analytical views (analytics.*) - verified against sql/04_analytics/create_views.sql
+%% Output columns match the DBeaver reference screenshot exactly.
+%% Views are AGGREGATED ONLY (no patient-level or physical fields).
+%% NOTE: views have no physical FKs; joins to mart tables are logical (listed in README).
+erDiagram
+    vw_overall_metrics {
+        int total_appointments
+        int completed
+        int cancelled
+        int no_shows
+        int still_scheduled
+        float no_show_rate_pct
+    }
+    vw_monthly_no_show_trend {
+        int year
+        int month
+        varchar month_name
+        int total_appointments
+        int no_shows
+        float no_show_rate_pct
+    }
+    vw_clinic_no_show_rate {
+        varchar clinic_name
+        varchar clinic_type
+        varchar city
+        int total_appointments
+        int no_shows
+        float no_show_rate_pct
+    }
+    vw_appointment_type_no_show_rate {
+        varchar type_name
+        int total_appointments
+        int no_shows
+        float no_show_rate_pct
+    }
+    vw_time_slot_no_show_rate {
+        varchar time_slot
+        int total_appointments
+        int no_shows
+        float no_show_rate_pct
+    }
+    vw_weekday_no_show_rate {
+        varchar day_of_week
+        int day_of_week_num
+        int total_appointments
+        int no_shows
+        float no_show_rate_pct
+    }

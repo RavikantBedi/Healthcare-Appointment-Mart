@@ -1,0 +1,57 @@
+%% Analytics star schema (mart.*) - verified against sql/03_mart/create_fact_table.sql
+%% and sql/03_mart/create_dim_tables.sql
+%% Grain: ONE ROW = ONE scheduled appointment.
+%% PHYSICAL FKs: fk_fact_patient/clinic/date/appointment_type.
+erDiagram
+    fact_appointment {
+        bigint fact_id PK
+        uuid appointment_id UK
+        int patient_key FK
+        int clinic_key FK
+        int date_key FK
+        int appointment_type_key FK
+        time appointment_time
+        varchar time_slot
+        varchar status
+        bool no_show_flag
+        int is_no_show
+        int is_completed
+        int is_cancelled
+    }
+    dim_patient {
+        int patient_key PK
+        uuid patient_id UK
+        varchar gender
+        varchar age_group
+        varchar zip_code
+    }
+    dim_clinic {
+        int clinic_key PK
+        uuid clinic_id UK
+        varchar clinic_name
+        varchar clinic_type
+        varchar city
+        varchar state
+    }
+    dim_date {
+        int date_key PK
+        date full_date UK
+        int year
+        int month
+        int day
+        varchar month_name
+        varchar day_of_week
+        int day_of_week_num
+        int quarter
+        bool is_weekend
+    }
+    dim_appointment_type {
+        int appointment_type_key PK
+        int appointment_type_id UK
+        varchar type_name
+        varchar description
+    }
+    fact_appointment }|--|| dim_patient : "patient_key"
+    fact_appointment }|--|| dim_clinic : "clinic_key"
+    fact_appointment }|--|| dim_date : "date_key"
+    fact_appointment }|--|| dim_appointment_type : "appointment_type_key"
