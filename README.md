@@ -462,6 +462,25 @@ python -m venv venv
 pip install -r requirements.txt
 ```
 
+### Windows Troubleshooting — If `python` Is Not Recognized
+
+If the `python` command is not recognized in PowerShell, use the Windows Python Launcher (`py`) as a fallback:
+
+```powershell
+py -m venv venv
+.\venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+```
+
+If `python` is still not recognized after activating the virtual environment, run the project commands using the virtual environment's Python interpreter directly:
+
+```powershell
+.\venv\Scripts\python.exe -m src.data_generation.generate_data
+.\venv\Scripts\python.exe -m src.etl.pipeline
+```
+
+Normally, `python` should work after activating the virtual environment. The `py` command is a Windows-specific fallback.
+
 Mac/Linux:
 
 ```bash
